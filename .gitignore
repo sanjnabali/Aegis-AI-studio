@@ -1,0 +1,21 @@
+# Virtual environments
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Model files
+backend/app/models/    # if this contains large LLM model files
+
+# Logs
+*.log
+llama.log
+
+# Data folders
+Data/
+data/
+
+# Other unwanted folders
+backend\llama_cpp_python-0.2.90-cp311-cp311-win_amd64.whl

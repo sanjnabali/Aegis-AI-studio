@@ -1,0 +1,49 @@
+services:
+  # Service 1: Our "Brain" (the FastAPI Backend)
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: aegis-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+    networks:
+      - aegis-net
+
+  # Service 2: Our "Face" (The Official Image)
+  frontend:
+    # --- THIS IS THE CHANGE ---
+    # We are no longer building the frontend. We are using the
+    # official, pre-built image, which is faster and simpler.
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: aegis-frontend
+    ports:
+      - "3000:8080"
+    environment:
+      # --- This is our "magic glue" ---
+      - 'OPENAI_API_BASE_URL=http://aegis-backend:8000/v1'
+      - 'OPENAI_API_KEY=dummy-key'
+      
+      # --- These disable all other backends ---
+      - 'ENABLE_OLLAMA_API=false'
+      - 'WEBUI_DISABLE_MODEL_PULL=true'
+      - 'OLLAMA_BASE_URL=' 
+      - 'GROQ_API_KEY='
+      
+      # --- This fixes the "Model not found" bug ---
+      - 'WEBUI_DISABLE_AUTO_TITLE_GENERATION=false'
+      - 'WEBUI_DEFAULT_MODEL=llava-v1.6-mistral-7b'
+      
+      # --- This is our custom branding ---
+      - 'WEBUI_NAME=Aegis Studio'
+      
+    depends_on:
+      - backend
+    networks:
+      - aegis-net
+
+networks:
+  aegis-net:
+    driver: bridge
