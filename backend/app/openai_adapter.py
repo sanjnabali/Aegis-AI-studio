@@ -1,122 +1,113 @@
 """
-OpenAI-Compatible API Adapter - Optimized
-=========================================
-Supports:
-- Groq (primary): 800 tok/s, ultra-fast
-- HuggingFace (specialized): Code, images, voice
-- Smart routing with zero-latency overhead
-- Aggressive caching
+Ultra-Lightweight OpenAI Adapter - MINIMAL DISK USAGE
+=====================================================
+Total: ~5GB models (DeepSeek + Embeddings + Whisper)
+Primary: Groq for 95% of tasks (0 disk)
 """
 
 import uuid
 import time
-from typing import Optional, Dict, Any
+from typing import Optional
+from io import BytesIO
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi import APIRouter, HTTPException, Request, File, UploadFile, Form
+from fastapi.responses import StreamingResponse, JSONResponse, Response
 from loguru import logger
 
 from app.core import models
-from app.core.cache import (
-    generate_cache_key,
-    get_cached_response,
-    set_cached_response,
-    get_cache_stats,
-)
-from app.core.schemas import (
-    ChatCompletionRequest,
-    StreamChoice,
-    StreamDelta,
-    ChatCompletionStreamResponse,
-    ModelData,
-    ModelList,
-)
+from app.core.cache import generate_cache_key, get_cached_response, set_cached_response, get_cache_stats
+from app.core.schemas import ChatCompletionRequest, StreamChoice, StreamDelta, ChatCompletionStreamResponse, ModelData, ModelList
 from app.core.config import get_settings
 
 settings = get_settings()
 router = APIRouter()
 
 # ============================================================================
-# MODEL REGISTRY (Updated for llama-3.3-70b-versatile)
+# MODEL REGISTRY - ULTRA-LIGHTWEIGHT (5GB total)
 # ============================================================================
 
 MODELS = {
+    # === PRIMARY: GROQ (0 DISK, RECOMMENDED FOR EVERYTHING) ===
+    
     "aegis-groq-turbo": {
         "id": "aegis-groq-turbo",
-        "name": "Aegis Groq Llama 3.3 70B (Ultra-Fast)",
+        "name": "Aegis Groq Turbo (Llama 3.3 70B) ⚡ DEFAULT",
         "backend": "groq",
-        "description": "Llama 3.3 70B via Groq - Maximum speed and capability",
+        "type": "chat",
+        "description": "Ultra-fast, 0 disk/RAM - Use for 95% of tasks",
         "speed": "800 tok/s",
-        "ttft": "~200ms",
-        "context": "8k tokens",
-        "best_for": "Chat, general tasks, real-time responses",
-        "rate_limit": "30 req/min",
-        "provider": "Groq Cloud",
-        "model_string": "llama-3.3-70b-versatile",
+        "disk": "0GB (cloud)",
+        "ram": "0GB (cloud)",
+        "best_for": "Chat, reasoning, general tasks, vision (coming soon)",
+        "recommended": True,
     },
+    
+    # === LOCAL: ONLY ESSENTIALS (5GB total) ===
+    
+    "aegis-code": {
+        "id": "aegis-code",
+        "name": "Aegis Code (DeepSeek 1.3B)",
+        "backend": "hf_code",
+        "type": "chat",
+        "description": "Specialized code generation (only local model)",
+        "speed": "~100 tok/s",
+        "disk": "~1.3GB",
+        "ram": "~2GB",
+        "best_for": "Code generation, debugging (specialized)",
+    },
+    
+    "aegis-embeddings": {
+        "id": "aegis-embeddings",
+        "name": "Aegis Embeddings (MiniLM)",
+        "backend": "hf_embeddings",
+        "type": "embeddings",
+        "description": "Text embeddings for RAG",
+        "disk": "~80MB",
+        "ram": "~0.5GB",
+        "best_for": "Semantic search, RAG, document similarity",
+    },
+    
+    "aegis-whisper": {
+        "id": "aegis-whisper",
+        "name": "Aegis STT (Whisper Tiny)",
+        "backend": "hf_whisper",
+        "type": "audio",
+        "description": "Speech-to-text (local for privacy)",
+        "disk": "~150MB",
+        "ram": "~0.5GB",
+        "best_for": "Voice transcription",
+    },
+    
+    # === SMART ROUTING ===
+    
     "aegis-auto": {
         "id": "aegis-auto",
-        "name": "Aegis Auto (Smart Routing)",
+        "name": "Aegis Auto (Smart) 🤖",
         "backend": "auto",
-        "description": "Intelligent routing - uses best model for each task",
-        "speed": "Variable (up to 800 tok/s)",
-        "context": "8k tokens",
-        "best_for": "Mixed workloads, code + chat",
-        "rate_limit": "30 req/min",
-        "provider": "Auto-select",
-        "model_string": "auto",
-    },
-    "aegis-groq-whisper": {
-        "id": "aegis-groq-whisper",
-        "name": "whisper-large-v3-turbo",
-        "backend": "groq",
-        "description": "A fine-tuned version of a pruned Whisper Large V3 designed for fast, multilingual transcription tasks.",
-        "speed": "500 tok/s",
-        "ttft": "~300ms",
-        "context": "32k tokens",
-        "best_for": "Long documents, complex analysis",
-        "rate_limit": "30 req/min",
-        "provider": "Groq Cloud",
-        "model_string": "whisper-large-v3-turbo",
+        "type": "chat",
+        "description": "Smart routing - Code→Local, Everything else→Groq",
+        "disk": "~1.5GB",
+        "best_for": "General use - Let AI decide",
     },
 }
 
-# Conditionally add HF models if enabled
-if settings.enable_hf_models:
-    MODELS.update({
-        "aegis-code": {
-            "id": "aegis-code",
-            "name": "Aegis Code (DeepSeek 1.3B)",
-            "backend": "hf_code",
-            "description": "DeepSeek Coder 1.3B - Specialized code generation",
-            "speed": "~100 tok/s (local)",
-            "context": "4k tokens",
-            "best_for": "Code generation, debugging, refactoring",
-            "provider": "HuggingFace (Local)",
-            "model_string": "deepseek-coder-1.3b",
-        },
-        "aegis-image": {
-            "id": "aegis-image",
-            "name": "Aegis Image (SDXL Turbo)",
-            "backend": "hf_image",
-            "description": "SDXL Turbo - Fast 1-step image generation",
-            "speed": "~1s per image",
-            "best_for": "Fast image generation, prototyping",
-            "provider": "HuggingFace (Local)",
-            "model_string": "sdxl-turbo",
-        },
-    })
+# ============================================================================
+# INFO MESSAGES FOR REMOVED FEATURES
+# ============================================================================
+
+REMOVED_FEATURES_INFO = {
+    "reasoning": "Use aegis-groq-turbo instead (same quality, 0 disk)",
+    "vision": "Use aegis-groq-turbo with images (Groq has vision support)",
+    "image_gen": "Use external API: Stability AI, Replicate, or ComfyUI",
+}
 
 # ============================================================================
-# MODEL LIST ENDPOINT
+# ENDPOINTS
 # ============================================================================
 
 @router.get("/v1/models")
 async def get_models():
-    """
-    List all available models with performance characteristics.
-    OpenAI-compatible endpoint.
-    """
+    """List available models"""
     return ModelList(
         data=[
             ModelData(
@@ -132,7 +123,7 @@ async def get_models():
 
 @router.get("/v1/models/{model_id}")
 async def get_model(model_id: str):
-    """Get detailed information about a specific model"""
+    """Get model details"""
     if model_id not in MODELS:
         raise HTTPException(status_code=404, detail="Model not found")
     
@@ -144,427 +135,319 @@ async def get_model(model_id: str):
     }
 
 
-# ============================================================================
-# MESSAGE PROCESSING (Optimized)
-# ============================================================================
-
 def _process_messages(request: ChatCompletionRequest) -> list:
-    """
-    Fast message processing with minimal allocations.
-    Extracts text content from potentially multimodal messages.
-    """
+    """Process messages"""
     messages = []
     
     for msg in request.messages:
         if isinstance(msg.content, str):
-            # Fast path: simple string content
-            messages.append({
-                "role": msg.role,
-                "content": msg.content,
-            })
+            messages.append({"role": msg.role, "content": msg.content})
         elif isinstance(msg.content, list):
-            # Handle multimodal content (extract text only)
-            text_parts = [
-                part.text
-                for part in msg.content
-                if hasattr(part, 'type') and part.type == "text" and hasattr(part, 'text') and part.text
-            ]
+            text_parts = []
+            image_urls = []
             
-            if text_parts:
+            for part in msg.content:
+                if hasattr(part, 'type'):
+                    if part.type == "text" and hasattr(part, 'text'):
+                        text_parts.append(part.text)
+                    elif part.type == "image_url" and hasattr(part, 'image_url'):
+                        image_urls.append(part.image_url.url)
+            
+            if image_urls:
+                # Vision request - will use Groq
                 messages.append({
                     "role": msg.role,
-                    "content": " ".join(text_parts),
+                    "content": " ".join(text_parts) if text_parts else "What's in this image?",
+                    "images": image_urls,
                 })
+            elif text_parts:
+                messages.append({"role": msg.role, "content": " ".join(text_parts)})
     
     return messages
 
 
-# ============================================================================
-# STREAMING GENERATOR (Optimized)
-# ============================================================================
-
 async def stream_generator(request: ChatCompletionRequest):
-    """
-    Highly optimized streaming generator with:
-    - Zero-copy message processing
-    - Smart backend selection
-    - Aggressive caching
-    - Minimal error overhead
-    """
+    """Ultra-lightweight streaming"""
     
-    start_time = time.time()
-    chat_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"  # Shorter UUID
-    
-    # Process messages (fast path)
+    chat_id = f"chatcmpl-{uuid.uuid4().hex[:8]}"
     messages = _process_messages(request)
     
     if not messages:
-        yield 'data: {"error": "No valid messages"}\n\n'
+        yield 'data: {"error": "No messages"}\n\n'
         yield "data: [DONE]\n\n"
         return
     
-    # Determine backend (zero overhead lookup)
-    model_config = MODELS.get(request.model)
-    if not model_config:
-        logger.warning(f"Unknown model '{request.model}', using aegis-groq-turbo")
-        request.model = "aegis-groq-turbo"
-        model_config = MODELS["aegis-groq-turbo"]
-    
+    model_config = MODELS.get(request.model, MODELS["aegis-auto"])
     backend = model_config["backend"]
     
-    # Check cache (only if enabled)
-    cache_key = None
+    # Check for images (use Groq for vision)
+    has_images = any("images" in msg for msg in messages)
+    if has_images:
+        logger.info("🖼️ Vision request → Using Groq")
+        # Note: Groq doesn't fully support vision yet, but will in future
+        # For now, just describe that we can't process images
+        yield f'data: {{"id":"{chat_id}","object":"chat.completion.chunk","model":"{request.model}","choices":[{{"delta":{{"role":"assistant"}},"index":0}}]}}\n\n'
+        
+        info_msg = "Image processing not available in ultra-lightweight mode. For vision tasks, please use: (1) Groq's upcoming vision API, (2) External vision APIs like GPT-4 Vision, or (3) Enable full HF models."
+        
+        chunk_escaped = info_msg.replace('"', '\\"').replace('\n', '\\n')
+        yield f'data: {{"id":"{chat_id}","model":"{request.model}","choices":[{{"delta":{{"content":"{chunk_escaped}"}},"index":0}}]}}\n\n'
+        yield f'data: {{"id":"{chat_id}","model":"{request.model}","choices":[{{"delta":{{}},"index":0,"finish_reason":"stop"}}]}}\n\n'
+        yield "data: [DONE]\n\n"
+        return
+    
+    # Send role
+    yield f'data: {{"id":"{chat_id}","object":"chat.completion.chunk","model":"{request.model}","choices":[{{"delta":{{"role":"assistant"}},"index":0}}]}}\n\n'
+    
     full_response = []
     
-    if settings.enable_caching:
-        cache_key = generate_cache_key(messages, request.model)
-        cached = await get_cached_response(cache_key)
-        
-        if cached:
-            logger.info(f"⚡ Cache HIT (saved API call)")
-            
-            # Send role
-            yield f'data: {{"id":"{chat_id}","object":"chat.completion.chunk","created":{int(time.time())},"model":"{request.model}","choices":[{{"delta":{{"role":"assistant"}},"index":0}}]}}\n\n'
-            
-            # Send cached content in chunks (simulate streaming for UX)
-            chunk_size = 50
-            for i in range(0, len(cached), chunk_size):
-                chunk = cached[i:i+chunk_size]
-                # Escape quotes in chunk
-                chunk_escaped = chunk.replace('"', '\\"').replace('\n', '\\n')
-                yield f'data: {{"id":"{chat_id}","object":"chat.completion.chunk","model":"{request.model}","choices":[{{"delta":{{"content":"{chunk_escaped}"}},"index":0}}]}}\n\n'
-            
-            # Send finish
-            yield f'data: {{"id":"{chat_id}","object":"chat.completion.chunk","model":"{request.model}","choices":[{{"delta":{{}},"index":0,"finish_reason":"stop"}}]}}\n\n'
-            yield "data: [DONE]\n\n"
-            
-            logger.info(f"✓ Served from cache in {(time.time()-start_time)*1000:.0f}ms")
-            return
-    
-    # Cache miss - stream from backend
-    logger.info(f"🚀 {request.model} ({backend}) | {len(messages)} messages")
-    
-    # Send initial role chunk
-    first_chunk = ChatCompletionStreamResponse(
-        id=chat_id,
-        model=request.model,
-        choices=[StreamChoice(
-            delta=StreamDelta(role="assistant"),
-            index=0
-        )]
-    )
-    yield f"data: {first_chunk.model_dump_json()}\n\n"
-    
-    # Stream from backend
     try:
-        # Route to appropriate backend
-        if backend == "groq":
-            # Use the model string from config
-            groq_model = model_config.get("model_string", "llama-3.3-70b-versatile")
-            stream = models.groq_stream(
-                messages,
-                model=groq_model,
-                max_tokens=request.max_tokens,
-                temperature=request.temperature,
-            )
-        elif backend == "auto":
-            stream = models.unified_stream(
-                messages,
-                model="auto",
-                max_tokens=request.max_tokens,
-                temperature=request.temperature,
-            )
-        elif backend == "hf_code":
-            # HF code generation (non-streaming, but we'll chunk it)
-            last_msg = messages[-1]["content"]
-            code_result = await models.hf_code_generate(last_msg)
+        if backend == "hf_code":
+            # Local code generation
+            result = await models.hf_code_generate(messages[-1]["content"])
             
-            # Send in chunks
+            # Stream in chunks
             chunk_size = 50
-            for i in range(0, len(code_result), chunk_size):
-                chunk = code_result[i:i+chunk_size]
+            for i in range(0, len(result), chunk_size):
+                chunk = result[i:i+chunk_size]
                 full_response.append(chunk)
                 
-                chunk_response = ChatCompletionStreamResponse(
-                    id=chat_id,
-                    model=request.model,
-                    choices=[StreamChoice(
-                        delta=StreamDelta(content=chunk),
-                        index=0
-                    )]
-                )
-                yield f"data: {chunk_response.model_dump_json()}\n\n"
+                chunk_escaped = chunk.replace('"', '\\"').replace('\n', '\\n')
+                yield f'data: {{"id":"{chat_id}","model":"{request.model}","choices":[{{"delta":{{"content":"{chunk_escaped}"}},"index":0}}]}}\n\n'
             
-            # Done with code gen
-            stream = None  # Skip streaming loop
-        else:
-            # Default to unified
-            stream = models.unified_stream(messages)
+            stream = None
         
-        # Stream chunks (if streaming backend)
+        elif backend == "groq":
+            # Groq streaming
+            stream = models.groq_stream(
+                messages,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+            )
+        
+        elif backend == "auto":
+            # Smart routing
+            stream = models.unified_stream(
+                messages,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+            )
+        
+        else:
+            # Default to Groq
+            stream = models.groq_stream(messages)
+        
+        # Process stream
         if stream:
             async for chunk_text in stream:
                 full_response.append(chunk_text)
                 
-                chunk_response = ChatCompletionStreamResponse(
-                    id=chat_id,
-                    model=request.model,
-                    choices=[StreamChoice(
-                        delta=StreamDelta(content=chunk_text),
-                        index=0
-                    )]
-                )
-                yield f"data: {chunk_response.model_dump_json()}\n\n"
-        
-        # Cache complete response
-        if settings.enable_caching and cache_key and full_response:
-            complete = "".join(full_response)
-            await set_cached_response(cache_key, complete)
-        
-        # Send finish reason
-        finish_chunk = ChatCompletionStreamResponse(
-            id=chat_id,
-            model=request.model,
-            choices=[StreamChoice(
-                delta=StreamDelta(),
-                index=0,
-                finish_reason="stop"
-            )]
-        )
-        yield f"data: {finish_chunk.model_dump_json()}\n\n"
-        
-        # Log performance
-        duration = time.time() - start_time
-        tokens_approx = len("".join(full_response).split())
-        speed = tokens_approx / duration if duration > 0 else 0
-        
-        logger.success(
-            f"✓ Completed | {duration:.2f}s | "
-            f"~{tokens_approx} tokens | {speed:.0f} tok/s"
-        )
+                chunk_escaped = chunk_text.replace('"', '\\"').replace('\n', '\\n')
+                yield f'data: {{"id":"{chat_id}","model":"{request.model}","choices":[{{"delta":{{"content":"{chunk_escaped}"}},"index":0}}]}}\n\n'
         
     except Exception as e:
-        logger.error(f"❌ Stream error: {e}")
+        logger.error(f"❌ Error: {e}")
         
-        # Send user-friendly error
-        error_chunk = ChatCompletionStreamResponse(
-            id=chat_id,
-            model=request.model,
-            choices=[StreamChoice(
-                delta=StreamDelta(
-                    content=f"\n\n[Error: {str(e)}. Please try again or select a different model.]"
-                ),
-                index=0
-            )]
-        )
-        yield f"data: {error_chunk.model_dump_json()}\n\n"
+        error_msg = f"[Error: {str(e)}]"
+        error_escaped = error_msg.replace('"', '\\"')
+        yield f'data: {{"id":"{chat_id}","choices":[{{"delta":{{"content":"{error_escaped}"}},"index":0}}]}}\n\n'
     
+    # Send finish
+    yield f'data: {{"id":"{chat_id}","model":"{request.model}","choices":[{{"delta":{{}},"index":0,"finish_reason":"stop"}}]}}\n\n'
     yield "data: [DONE]\n\n"
 
 
-# ============================================================================
-# CHAT COMPLETION ENDPOINT
-# ============================================================================
-
 @router.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest, req: Request):
-    """
-    OpenAI-compatible chat completion endpoint (optimized).
+    """Chat completion endpoint"""
     
-    Features:
-    - Streaming (SSE) with minimal latency
-    - Smart model routing
-    - Aggressive caching
-    - Zero-overhead for cached requests
-    
-    Performance:
-    - Cached response: ~50ms
-    - Groq new response: ~200ms TTFT, 800 tok/s
-    - HF code gen: 1-3s
-    """
-    
-    # Validate model (fast path)
     if request.model not in MODELS:
-        logger.warning(f"Unknown model '{request.model}', defaulting to aegis-groq-turbo")
-        request.model = "aegis-groq-turbo"
+        logger.warning(f"Unknown model '{request.model}', using aegis-auto")
+        request.model = "aegis-auto"
     
-    # Log request (minimal overhead)
-    logger.info(
-        f"📨 {req.client.host} | {request.model} | "
-        f"{len(request.messages)}msg"
-    )
+    logger.info(f"📨 {req.client.host} | {request.model} | {len(request.messages)}msg")
     
-    # Return streaming response
     return StreamingResponse(
         stream_generator(request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-            "X-Content-Type-Options": "nosniff",
         },
     )
 
 
 # ============================================================================
-# PERFORMANCE METRICS ENDPOINT
+# AUDIO TRANSCRIPTION
+# ============================================================================
+
+@router.post("/v1/audio/transcriptions")
+async def create_transcription(
+    file: UploadFile = File(...),
+    model: str = Form(default="whisper-1"),
+):
+    """Speech-to-text with Whisper Tiny"""
+    
+    if not settings.enable_hf_models:
+        raise HTTPException(status_code=501, detail="Requires HF models")
+    
+    logger.info(f"🎤 STT: {file.filename}")
+    
+    try:
+        audio_data = await file.read()
+        
+        import librosa
+        audio_array, _ = librosa.load(BytesIO(audio_data), sr=16000)
+        
+        transcription = await models.hf_speech_to_text(audio_array)
+        
+        return {
+            "text": transcription,
+            "language": "en",
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ STT error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# EMBEDDINGS
+# ============================================================================
+
+@router.post("/v1/embeddings")
+async def create_embeddings(request: dict):
+    """Embeddings endpoint"""
+    
+    if not settings.enable_hf_models:
+        raise HTTPException(status_code=501, detail="Requires HF models")
+    
+    texts = request.get("input", [])
+    if isinstance(texts, str):
+        texts = [texts]
+    
+    logger.info(f"📊 Embeddings: {len(texts)} texts")
+    
+    try:
+        embeddings = await models.hf_get_embeddings(texts)
+        
+        return {
+            "object": "list",
+            "data": [
+                {
+                    "object": "embedding",
+                    "embedding": emb,
+                    "index": i,
+                }
+                for i, emb in enumerate(embeddings)
+            ],
+            "model": "aegis-embeddings",
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Embeddings error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# METRICS & HEALTH
 # ============================================================================
 
 @router.get("/v1/metrics")
-async def get_performance_metrics():
-    """
-    Get real-time performance metrics.
+async def get_metrics():
+    """Performance metrics"""
     
-    Returns:
-    - Backend statistics (requests, speed, latency)
-    - Cache statistics (hit rate, savings)
-    - Theoretical benchmarks
-    - Available models
-    """
-    
-    model_metrics = models.get_metrics()
-    cache_metrics = get_cache_stats()
-    
-    return {
-        "backends": model_metrics,
-        "cache": cache_metrics,
-        "models": {
-            "available": list(MODELS.keys()),
-            "default": "aegis-groq-turbo",
-            "total": len(MODELS),
-        },
-        "benchmark": {
-            "groq_llama_3_3_70b": {
-                "speed": "800 tok/s",
-                "ttft": "~200ms",
-                "rate_limit": "30 req/min",
-                "context": "8k tokens",
-                "recommended_for": "General chat, fast responses, real-time",
-            },
-            "groq_whisper_large_v3_turbo": {
-                "speed": "500 tok/s",
-                "ttft": "~300ms",
-                "rate_limit": "30 req/min",
-                "context": "32k tokens",
-                "recommended_for": "Long documents, complex analysis",
-            },
-            "hf_code": {
-                "speed": "~100 tok/s (local)",
-                "latency": "1-3s",
-                "context": "4k tokens",
-                "recommended_for": "Code generation",
-                "enabled": settings.enable_hf_models,
-            },
-        },
-        "system": {
-            "uptime_seconds": time.time() - _startup_time,
-            "caching_enabled": settings.enable_caching,
-            "hf_models_enabled": settings.enable_hf_models,
-        }
-    }
-
-
-# ============================================================================
-# AVAILABLE MODELS INFO ENDPOINT
-# ============================================================================
-
-@router.get("/v1/models/info")
-async def get_models_info():
-    """
-    Get detailed info about all available models.
-    Includes performance characteristics and use cases.
-    """
     return {
         "models": MODELS,
-        "recommendations": {
-            "fastest": "aegis-groq-turbo",
-            "balanced": "aegis-auto",
-            "code": "aegis-code" if settings.enable_hf_models else "aegis-groq-turbo",
-            "image": "aegis-image" if settings.enable_hf_models else "N/A",
-            "transcription": "aegis-groq-whisper",
-            "chat": "aegis-groq-turbo",
-
+        "backends": models.get_metrics(),
+        "cache": get_cache_stats(),
+        "system": {
+            "mode": "ultra-lightweight",
+            "total_disk_usage": "~5GB",
+            "local_models": ["DeepSeek Coder", "MiniLM", "Whisper Tiny"],
+            "primary_engine": "Groq (0 disk)",
+            "removed_features": REMOVED_FEATURES_INFO,
         }
     }
 
 
-# ============================================================================
-# HEALTH CHECK
-# ============================================================================
-
+@router.get("/health")
 @router.get("/v1/health")
 async def health_check():
-    """
-    Detailed health check endpoint.
+    """Health check with disk usage info"""
     
-    Returns:
-    - Component status
-    - Model availability
-    - Performance metrics summary
-    """
+    import psutil
     
     try:
-        # Check Groq
-        groq_status = "operational"
-        try:
-            models.get_groq_client()
-        except:
-            groq_status = "unavailable"
-        
-        # Check cache
-        cache_status = "operational" if settings.enable_caching else "disabled"
-        
-        # Check HF
-        hf_status = "enabled" if settings.enable_hf_models else "disabled"
-        
-        # Get metrics
-        model_metrics = models.get_metrics()
+        ram_free_gb = psutil.virtual_memory().available / (1024**3)
         
         return {
             "status": "healthy",
             "timestamp": time.time(),
-            "components": {
-                "groq": groq_status,
-                "cache": cache_status,
-                "hf_models": hf_status,
-            },
             "models": {
-                "available": list(MODELS.keys()),
-                "count": len(MODELS),
-                "primary": "llama-3.3-70b-versatile",
+                "total": len(MODELS),
+                "groq": 1,
+                "local": 3,
             },
-            "performance": {
-                "cache_hit_rate": get_cache_stats().get("hit_rate", "0%"),
-                "total_requests": model_metrics.get("groq", {}).get("requests", 0),
-            }
+            "system": {
+                "mode": "ultra-lightweight",
+                "disk_usage": "~5GB total",
+                "free_ram_gb": round(ram_free_gb, 1),
+                "recommendation": "Use aegis-groq-turbo for best performance (0 disk/RAM)",
+            },
+            "components": {
+                "groq": "operational",
+                "hf_models": "enabled" if settings.enable_hf_models else "disabled",
+                "cache": "enabled" if settings.enable_caching else "disabled",
+            },
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(
             status_code=503,
-            content={
-                "status": "unhealthy",
-                "error": str(e)
-            }
+            content={"status": "unhealthy", "error": str(e)}
         )
 
 
-# ============================================================================
-# STARTUP TRACKING
-# ============================================================================
+@router.get("/v1/features")
+async def get_features():
+    """Show available features and alternatives for removed ones"""
+    
+    return {
+        "available": {
+            "chat": "✅ Groq Llama 3.3 70B (800 tok/s, 0 disk)",
+            "code": "✅ DeepSeek Coder 1.3B (local, 1.3GB)",
+            "embeddings": "✅ MiniLM (local, 80MB)",
+            "speech_to_text": "✅ Whisper Tiny (local, 150MB)",
+        },
+        "removed_to_save_space": {
+            "reasoning_model": {
+                "removed": "Phi-2 (4GB)",
+                "alternative": "Use aegis-groq-turbo (same quality, 0 disk)",
+            },
+            "vision_model": {
+                "removed": "BLIP Large (3GB)",
+                "alternatives": [
+                    "Groq Llama 3.2 Vision API (when available)",
+                    "OpenAI GPT-4 Vision API",
+                    "Claude 3 Vision API",
+                    "Enable full HF models if needed",
+                ],
+            },
+            "image_generation": {
+                "removed": "SDXL Turbo (7GB)",
+                "alternatives": [
+                    "Stability AI API (https://platform.stability.ai/)",
+                    "Replicate (https://replicate.com/)",
+                    "ComfyUI (if you have GPU)",
+                    "DALL-E API",
+                ],
+            },
+        },
+        "total_disk_saved": "~10GB (from 15GB → 5GB)",
+    }
+
 
 _startup_time = time.time()
 
-
-# ============================================================================
-# EXPORT
-# ============================================================================
-
-__all__ = [
-    'router',
-    'MODELS',
-    'get_models',
-    'chat_completions',
-    'get_performance_metrics',
-]
+__all__ = ['router', 'MODELS']

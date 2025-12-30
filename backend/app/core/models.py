@@ -1,514 +1,342 @@
 """
-Unified Model Gateway - Groq + HuggingFace (Optimized for Speed)
-================================================================
-Architecture:
-- Groq: Ultra-fast chat (800 tok/s, 200ms TTFT)
-- HuggingFace: Specialized tasks (code, image, voice)
-- Smart routing with zero latency overhead
-- Aggressive caching and lazy loading
+Ultra-Lightweight Model Manager - MINIMAL DISK USAGE
+===================================================
+Total: ~5GB models (vs 15GB optimized, 45GB full)
+Strategy: Groq for most tasks + only essential local models
 """
 
-import os
-import time
 import asyncio
-from typing import AsyncGenerator, Optional, Dict, Any, List
-from datetime import datetime, timedelta
-from collections import defaultdict
-from functools import lru_cache
-
-from groq import Groq
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type
-)
+import gc
+import time
+from typing import Optional, AsyncGenerator
+from groq import AsyncGroq
 from loguru import logger
 
+from app.core.config import get_settings
+
+settings = get_settings()
+
 # ============================================================================
-# LAZY IMPORTS (Only load when needed)
+# GROQ CLIENT (0 DISK, 0 RAM - PRIMARY ENGINE)
 # ============================================================================
+
+_groq_client = None
+
+def get_groq_client() -> AsyncGroq:
+    """Get Groq client (cloud-based, 0 local storage)"""
+    global _groq_client
+    
+    if _groq_client is None:
+        if not settings.groq_api_key:
+            raise ValueError("GROQ_API_KEY not set")
+        
+        _groq_client = AsyncGroq(
+            api_key=settings.groq_api_key,
+            timeout=settings.request_timeout,
+        )
+        logger.info("✓ Groq client initialized (0 disk/RAM)")
+    
+    return _groq_client
+
+
+# ============================================================================
+# MINIMAL LOCAL MODELS - ONLY ESSENTIALS
+# ============================================================================
+
+class UltraLightModels:
+    """Minimal local models - total ~5GB disk"""
+    
+    def __init__(self):
+        # Only keep these 3 essential models
+        self.code_model = None          # ~1.3GB (essential for code)
+        self.code_tokenizer = None
+        self.embeddings_model = None    # ~80MB (essential for RAG)
+        self.stt_model = None           # ~150MB (essential for voice)
+        
+        # Removed to save space:
+        # - Reasoning model (use Groq instead)
+        # - Vision model (use Groq Llama 3.2 Vision if available)
+        # - Image generation (too slow on CPU, use external API)
+        
+        self._load_lock = asyncio.Lock()
+        
+        logger.info("🪶 Ultra-lightweight models (5GB total)")
+    
+    async def load_code(self):
+        """Load DeepSeek Coder 1.3B (essential for code, 1.3GB)"""
+        if self.code_model is not None:
+            return
+        
+        async with self._load_lock:
+            if self.code_model is not None:
+                return
+            
+            logger.info("⏳ Loading DeepSeek Coder (1.3GB)...")
+            
+            from transformers import AutoTokenizer, AutoModelForCausalLM
+            import torch
+            
+            loop = asyncio.get_event_loop()
+            
+            def _load():
+                tokenizer = AutoTokenizer.from_pretrained(
+                    "deepseek-ai/deepseek-coder-1.3b-instruct",
+                    cache_dir="/app/models",
+                )
+                
+                model = AutoModelForCausalLM.from_pretrained(
+                    "deepseek-ai/deepseek-coder-1.3b-instruct",
+                    cache_dir="/app/models",
+                    torch_dtype=torch.float16,
+                    device_map="auto",
+                )
+                
+                return tokenizer, model
+            
+            self.code_tokenizer, self.code_model = await loop.run_in_executor(None, _load)
+            
+            logger.success("✓ DeepSeek Coder loaded (1.3GB)")
+    
+    async def load_embeddings(self):
+        """Load MiniLM embeddings (essential for RAG, 80MB)"""
+        if self.embeddings_model is not None:
+            return
+        
+        async with self._load_lock:
+            if self.embeddings_model is not None:
+                return
+            
+            logger.info("⏳ Loading embeddings (80MB)...")
+            
+            from sentence_transformers import SentenceTransformer
+            
+            loop = asyncio.get_event_loop()
+            
+            def _load():
+                return SentenceTransformer(
+                    "sentence-transformers/all-MiniLM-L6-v2",
+                    cache_folder="/app/models",
+                )
+            
+            self.embeddings_model = await loop.run_in_executor(None, _load)
+            
+            logger.success("✓ Embeddings loaded (80MB)")
+    
+    async def load_stt(self):
+        """Load Whisper Tiny (essential for voice, 150MB)"""
+        if self.stt_model is not None:
+            return
+        
+        async with self._load_lock:
+            if self.stt_model is not None:
+                return
+            
+            logger.info("⏳ Loading Whisper Tiny (150MB)...")
+            
+            from transformers import pipeline
+            
+            loop = asyncio.get_event_loop()
+            
+            def _load():
+                return pipeline(
+                    "automatic-speech-recognition",
+                    model="openai/whisper-tiny",
+                    cache_dir="/app/models",
+                )
+            
+            self.stt_model = await loop.run_in_executor(None, _load)
+            
+            logger.success("✓ Whisper Tiny loaded (150MB)")
+
 
 _hf_models = None
-_gemini_available = False
 
-def _get_hf_models():
-    """Lazy load HuggingFace models"""
+def _get_hf_models() -> Optional[UltraLightModels]:
+    """Get ultra-lightweight models manager"""
     global _hf_models
+    
+    if not settings.enable_hf_models:
+        return None
+    
     if _hf_models is None:
-        try:
-            from app.core import hf_models
-            _hf_models = hf_models
-            logger.success("✓ HuggingFace models available")
-        except ImportError:
-            logger.warning("⚠ HuggingFace models not available")
-            _hf_models = False
-    return _hf_models if _hf_models else None
+        _hf_models = UltraLightModels()
+    
+    return _hf_models
+
 
 # ============================================================================
-# GLOBAL STATE (Minimal overhead)
+# STREAMING FUNCTIONS
 # ============================================================================
 
-groq_client: Optional[Groq] = None
-
-# Rate limiting (efficient deque-based)
-from collections import deque
-groq_timestamps = deque(maxlen=30)  # Last 30 requests
-
-# Performance metrics (lock-free counters)
-metrics = {
-    "groq": {
-        "requests": 0,
-        "tokens": 0,
-        "total_time": 0,
-        "avg_ttft": 200,  # ms
-    },
-}
-
-# ============================================================================
-# INITIALIZATION (Fast startup)
-# ============================================================================
-
-def initialize_apis():
-    """
-    Initialize APIs with minimal overhead.
-    Only Groq is loaded at startup - HF models load on-demand.
-    """
-    global groq_client
-    
-    groq_key = os.getenv("GROQ_API_KEY")
-    
-    # Fast validation
-    if not groq_key or not groq_key.startswith("gsk_"):
-        raise ValueError(
-            "Invalid GROQ_API_KEY. Get from: https://console.groq.com/keys"
-        )
-    
-    # Initialize Groq (primary engine)
-    try:
-        groq_client = Groq(api_key=groq_key)
-        logger.success("✓ Groq initialized (800 tok/s, 30 req/min)")
-        logger.info("✓ HuggingFace models will load on-demand")
-    except Exception as e:
-        logger.error(f"Groq init failed: {e}")
-        raise
-
-# ============================================================================
-# RATE LIMITING (Zero-allocation check)
-# ============================================================================
-
-def _check_groq_rate_limit() -> bool:
-    """
-    Ultra-fast rate limit check using deque.
-    Groq: 30 requests/minute
-    """
-    now = time.time()
-    
-    # Remove requests older than 60 seconds
-    while groq_timestamps and (now - groq_timestamps[0]) > 60:
-        groq_timestamps.popleft()
-    
-    # Check limit
-    if len(groq_timestamps) >= 30:
-        wait_time = 60 - (now - groq_timestamps[0])
-        logger.warning(f"⚠ Rate limit: wait {wait_time:.1f}s")
-        return False
-    
-    # Add current timestamp
-    groq_timestamps.append(now)
-    return True
-
-# ============================================================================
-# SMART ROUTING (Cached intent detection)
-# ============================================================================
-
-@lru_cache(maxsize=1024)
-def _detect_task_type(prompt: str) -> str:
-    """
-    Cached intent detection (zero overhead for repeated patterns).
-    
-    Returns:
-        - "code": Use HF DeepSeek Coder
-        - "image_gen": Use HF SDXL
-        - "image_analyze": Use HF BLIP
-        - "chat": Use Groq (default)
-    """
-    prompt_lower = prompt.lower()
-    
-    # Code detection (fastest checks first)
-    if any(kw in prompt_lower for kw in (
-        "write code", "function", "debug", "implement",
-        "python", "javascript", "algorithm", "program"
-    )):
-        return "code"
-    
-    # Image generation
-    if any(kw in prompt_lower for kw in (
-        "generate image", "create image", "draw", "picture of"
-    )):
-        return "image_gen"
-    
-    # Image analysis
-    if any(kw in prompt_lower for kw in (
-        "describe image", "what's in", "analyze image"
-    )):
-        return "image_analyze"
-    
-    # Default to chat (Groq)
-    return "chat"
-
-# ============================================================================
-# GROQ STREAMING (Optimized for minimum latency)
-# ============================================================================
-
-@retry(
-    stop=stop_after_attempt(2),  # Reduced retries for speed
-    wait=wait_exponential(multiplier=0.5, min=1, max=5),
-    retry=retry_if_exception_type((Exception,)),
-    reraise=True,
-)
 async def groq_stream(
-    messages: List[Dict],
-    model: str = None,
-    max_tokens: int = None,
+    messages: list,
+    model: str = "llama-3.3-70b-versatile",
+    max_tokens: int = 8000,
     temperature: float = 0.7,
-    stream: bool = True,
 ) -> AsyncGenerator[str, None]:
-    """
-    Optimized Groq streaming with aggressive performance tuning.
+    """Stream from Groq (primary engine, 0 disk/RAM)"""
     
-    Performance:
-    - Speed: 800 tokens/sec
-    - TTFT: ~200ms
-    - Zero overhead routing
-    """
-    
-    # Fast defaults
-    # Line ~145
-    model = model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
-    max_tokens = max_tokens or 8000
-    
-    # Rate limit check (instant)
-    if not _check_groq_rate_limit():
-        raise Exception("Rate limit exceeded. Wait 60s or reduce request frequency.")
-    
-    start = time.time()
-    tokens = 0
-    ttft = None
+    client = get_groq_client()
     
     try:
-        # Create stream (non-blocking)
-        stream_obj = groq_client.chat.completions.create(
+        stream = await client.chat.completions.create(
             model=model,
             messages=messages,
-            stream=True,
             max_tokens=max_tokens,
             temperature=temperature,
+            stream=True,
         )
         
-        # Stream chunks (zero-copy where possible)
-        for chunk in stream_obj:
-            content = chunk.choices[0].delta.content
-            if content:
-                # Track TTFT (first token only)
-                if ttft is None:
-                    ttft = (time.time() - start) * 1000
+        async for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
                 
-                tokens += 1  # Approximate token count
-                yield content
-        
-        # Update metrics (non-blocking)
-        duration = time.time() - start
-        _update_metrics_fast("groq", tokens, duration, ttft)
-        
     except Exception as e:
         logger.error(f"Groq error: {e}")
-        raise
+        yield f"[Error: {str(e)}]"
 
-# ============================================================================
-# HUGGINGFACE ROUTING (Lazy load)
-# ============================================================================
 
 async def hf_code_generate(prompt: str) -> str:
-    """
-    Generate code using HF DeepSeek Coder (1.3B).
-    Lazy loads model on first use.
-    """
+    """Generate code with DeepSeek (only local model for specialized task)"""
+    
+    hf = _get_hf_models()
+    if not hf:
+        # Fallback to Groq if HF disabled
+        logger.info("→ HF disabled, using Groq for code")
+        result = []
+        async for chunk in groq_stream([{"role": "user", "content": prompt}]):
+            result.append(chunk)
+        return "".join(result)
+    
+    await hf.load_code()
+    
+    logger.info("→ Using DeepSeek Coder (local)")
+    
+    import torch
+    
+    formatted = f"### Instruction:\n{prompt}\n\n### Response:\n"
+    
+    inputs = hf.code_tokenizer(
+        formatted,
+        return_tensors="pt",
+        truncation=True,
+        max_length=1024,
+    ).to(hf.code_model.device)
+    
+    loop = asyncio.get_event_loop()
+    
+    def _generate():
+        with torch.no_grad():
+            outputs = hf.code_model.generate(
+                **inputs,
+                max_new_tokens=512,
+                temperature=0.2,
+                do_sample=True,
+                pad_token_id=hf.code_tokenizer.eos_token_id,
+            )
+        
+        return hf.code_tokenizer.decode(
+            outputs[0][inputs.input_ids.shape[1]:],
+            skip_special_tokens=True,
+        )
+    
+    return await loop.run_in_executor(None, _generate)
+
+
+async def hf_speech_to_text(audio_array) -> str:
+    """STT with Whisper Tiny (local for privacy)"""
+    
     hf = _get_hf_models()
     if not hf:
         raise Exception("HuggingFace models not available")
     
-    logger.info("→ Using DeepSeek Coder (1.3B)")
+    await hf.load_stt()
     
-    # Run in thread pool (non-blocking)
+    logger.info("→ Using Whisper Tiny (local)")
+    
     loop = asyncio.get_event_loop()
-    result = await loop.run_in_executor(
-        None,
-        hf.code_model.generate,
-        prompt
-    )
+    result = await loop.run_in_executor(None, hf.stt_model, audio_array)
     
-    return result
+    return result["text"]
 
-async def hf_image_generate(prompt: str):
-    """
-    Generate image using HF SDXL Turbo.
-    Returns PIL Image object.
-    """
+
+async def hf_get_embeddings(texts: list) -> list:
+    """Generate embeddings (local for RAG)"""
+    
     hf = _get_hf_models()
     if not hf:
         raise Exception("HuggingFace models not available")
     
-    logger.info("→ Using SDXL Turbo")
+    await hf.load_embeddings()
+    
+    logger.info(f"→ Embeddings for {len(texts)} texts")
     
     loop = asyncio.get_event_loop()
-    image = await loop.run_in_executor(
-        None,
-        hf.image_gen_model.generate,
-        prompt
-    )
+    embeddings = await loop.run_in_executor(None, hf.embeddings_model.encode, texts)
     
-    return image
+    return embeddings.tolist()
 
-async def hf_image_analyze(image):
-    """
-    Analyze image using HF BLIP.
-    """
-    hf = _get_hf_models()
-    if not hf:
-        raise Exception("HuggingFace models not available")
-    
-    logger.info("→ Using BLIP Captioning")
-    
-    loop = asyncio.get_event_loop()
-    caption = await loop.run_in_executor(
-        None,
-        hf.image_caption_model.caption,
-        image
-    )
-    
-    return caption
-
-# ============================================================================
-# UNIFIED STREAMING (Smart routing with zero overhead)
-# ============================================================================
 
 async def unified_stream(
-    messages: List[Dict],
+    messages: list,
     model: str = "auto",
-    context: Optional[Dict] = None,
-    **kwargs
+    max_tokens: int = 8000,
+    temperature: float = 0.7,
 ) -> AsyncGenerator[str, None]:
     """
-    Unified streaming with intelligent routing.
-    
-    Routing logic:
-    1. Check explicit model selection
-    2. Detect task type from last message
-    3. Route to fastest appropriate model
-    
-    Priority: Speed > Quality (can be overridden with model param)
+    Ultra-lightweight routing
+    Strategy: Use Groq for everything except code
     """
     
-    # Extract last user message for intent detection
-    last_message = messages[-1].get("content", "") if messages else ""
+    last_message = messages[-1]["content"].lower() if messages else ""
     
-    # Override routing if model specified
-    if model and model != "auto":
-        if "groq" in model.lower():
-            async for chunk in groq_stream(messages, **kwargs):
-                yield chunk
-            return
-        elif "code" in model.lower():
-            response = await hf_code_generate(last_message)
-            yield response
-            return
-        elif "image" in model.lower():
-            # Handle in calling code
-            yield "[Image generation requested - see response]"
-            return
+    # Only use local model for code (DeepSeek is specialized)
+    code_keywords = ["code", "function", "script", "debug", "implement", "program"]
+    if any(kw in last_message for kw in code_keywords):
+        logger.info("🎯 Routing: DeepSeek Coder (specialized for code)")
+        result = await hf_code_generate(messages[-1]["content"])
+        
+        # Stream the result
+        chunk_size = 50
+        for i in range(0, len(result), chunk_size):
+            yield result[i:i+chunk_size]
+            await asyncio.sleep(0.01)
+        return
     
-    # Smart routing (cached detection)
-    task_type = _detect_task_type(last_message)
-    
-    if task_type == "code":
-        # Use HF for code generation
-        try:
-            response = await hf_code_generate(last_message)
-            yield response
-        except Exception as e:
-            logger.warning(f"HF code failed: {e}, falling back to Groq")
-            async for chunk in groq_stream(messages, **kwargs):
-                yield chunk
-    
-    elif task_type == "image_gen":
-        # Signal image generation needed
-        yield "[IMAGE_GEN_REQUESTED]"
-        # Actual generation handled by caller with context
-    
-    elif task_type == "image_analyze":
-        # Check if image provided
-        if context and "image" in context:
-            caption = await hf_image_analyze(context["image"])
-            yield caption
-        else:
-            yield "Please provide an image to analyze."
-    
-    else:
-        # Default: Use Groq (fastest)
-        async for chunk in groq_stream(messages, **kwargs):
-            yield chunk
+    # Everything else → Groq (chat, reasoning, vision, etc.)
+    logger.info("🎯 Routing: Groq Llama 3.3 70B (fast, 0 disk)")
+    async for chunk in groq_stream(messages, max_tokens=max_tokens, temperature=temperature):
+        yield chunk
+
 
 # ============================================================================
-# METRICS (Lock-free updates)
+# REMOVED FUNCTIONS (Use Groq or external APIs instead)
 # ============================================================================
 
-def _update_metrics_fast(backend: str, tokens: int, duration: float, ttft: float):
-    """
-    Ultra-fast metrics update without locks.
-    Uses atomic operations where possible.
-    """
-    m = metrics[backend]
-    m["requests"] += 1
-    m["tokens"] += tokens
-    m["total_time"] += duration
-    
-    # Update rolling TTFT average
-    if ttft:
-        m["avg_ttft"] = (m["avg_ttft"] * 0.9) + (ttft * 0.1)
+# Reasoning → Use Groq (same quality, 0 disk)
+# Vision → Use Groq Llama 3.2 Vision API (when available) or external API
+# Image Generation → Use external API (Stability AI, Replicate, etc.)
 
-def get_metrics() -> Dict[str, Any]:
-    """Get current performance metrics"""
-    m = metrics["groq"]
-    avg_latency = m["total_time"] / m["requests"] if m["requests"] > 0 else 0
-    avg_speed = m["tokens"] / m["total_time"] if m["total_time"] > 0 else 0
-    
-    return {
-        "groq": {
-            "status": "operational",
-            "requests": m["requests"],
-            "tokens": m["tokens"],
-            "avg_latency": f"{avg_latency:.2f}s",
-            "avg_speed": f"{avg_speed:.0f} tok/s",
-            "avg_ttft": f"{m['avg_ttft']:.0f}ms",
-            "rate_limit": f"30/min ({len(groq_timestamps)}/30 used)",
-        },
-        "huggingface": {
-            "status": "lazy_loaded",
-            "available": _get_hf_models() is not None,
-        }
-    }
 
 # ============================================================================
-# HELPER FUNCTIONS
+# METRICS
 # ============================================================================
 
-def get_groq_client() -> Groq:
-    """Get Groq client (zero overhead)"""
-    if groq_client is None:
-        raise RuntimeError("Groq not initialized")
-    return groq_client
+_metrics = {
+    "groq": {"requests": 0, "errors": 0},
+    "hf_code": {"requests": 0, "errors": 0},
+}
 
-def reset_rate_limits():
-    """Reset rate limits (testing only)"""
-    groq_timestamps.clear()
-    logger.info("Rate limits reset")
+def get_metrics() -> dict:
+    return _metrics
 
-def get_available_models() -> Dict[str, Any]:
-    """
-    Get available models with performance characteristics.
-    Fast operation - no network calls.
-    """
-    models_info = {
-        "primary": {
-            "name": "Groq Llama 3.3 70B",
-            "speed": "800 tok/s",
-            "ttft": "~200ms",
-            "context": "8k",
-            "use": "Chat, general tasks (fastest)"
-        }
-    }
-    
-    # Check HF availability (cached)
-    if _get_hf_models():
-        models_info["specialized"] = {
-            "code": {
-                "name": "DeepSeek Coder 1.3B",
-                "speed": "~100 tok/s (local)",
-                "size": "1.3GB",
-                "use": "Code generation"
-            },
-            "image_gen": {
-                "name": "SDXL Turbo",
-                "speed": "~1s per image",
-                "size": "6.9GB",
-                "use": "Fast image generation"
-            },
-            "image_analyze": {
-                "name": "BLIP Base",
-                "speed": "~500ms per image",
-                "size": "800MB",
-                "use": "Image captioning"
-            }
-        }
-    
-    return models_info
-
-# ============================================================================
-# PERFORMANCE TIPS
-# ============================================================================
-
-"""
-OPTIMIZATION NOTES:
-==================
-
-1. GROQ (Primary Engine):
-   - Ultra-fast: 800 tok/s
-   - Use for 90% of queries
-   - Aggressive caching of intent detection
-   - Zero-copy streaming where possible
-
-2. HuggingFace (Specialized):
-   - Lazy loaded (no startup penalty)
-   - Runs in thread pool (non-blocking)
-   - Only for specific tasks (code, images)
-   
-3. Rate Limiting:
-   - Zero-allocation deque-based tracking
-   - Instant checks (<1ms overhead)
-   
-4. Metrics:
-   - Lock-free atomic updates
-   - Minimal memory footprint
-   
-5. Caching:
-   - LRU cache for intent detection (1024 entries)
-   - Reduces repeated pattern matching overhead
-
-EXPECTED PERFORMANCE:
-====================
-- Chat response: <300ms TTFT, 800 tok/s
-- Code generation: 1-3s (depending on length)
-- Image generation: 1-2s
-- Image analysis: <500ms
-
-MEMORY FOOTPRINT:
-================
-- Groq client: ~50MB
-- HF models (lazy): 0MB (until first use)
-- Runtime overhead: <10MB
-"""
-
-# ============================================================================
-# EXPORT
-# ============================================================================
 
 __all__ = [
-    'initialize_apis',
     'groq_stream',
+    'hf_code_generate',
+    'hf_speech_to_text',
+    'hf_get_embeddings',
     'unified_stream',
-    'get_metrics',
     'get_groq_client',
-    'get_available_models',
-    'reset_rate_limits',
+    'get_metrics',
 ]

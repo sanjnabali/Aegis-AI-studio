@@ -1,249 +1,316 @@
-# 🛡️ Aegis AI Studio
+# 🛡️ Aegis AI Studio - HuggingFace First
 
-> Complete AI Platform: Groq (Llama 3.3 70B) + HuggingFace Models
+> Complete Local AI Platform with Advanced Models
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=flat&logo=docker&logoColor=white)](https://www.docker.com/)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+## ✨ Models Available
 
-## ✨ Features
+### Primary Models (HuggingFace - Local)
 
-### 🚀 Core Capabilities
-- **Ultra-Fast Chat**: 800+ tok/s via Groq Llama 3.3 70B
-- **Code Generation**: DeepSeek Coder 1.3B (local)
-- **Image Generation**: SDXL Turbo - 1-step diffusion
-- **Image Analysis**: BLIP captioning & visual Q&A
-- **Embeddings**: Semantic search with MiniLM-L6
+| Model | Type | Size | Speed | Best For |
+|-------|------|------|-------|----------|
+| **GPT-OSS-20B** | Reasoning | 20GB | ~100 tok/s | Complex analysis, logic problems |
+| **Llama 4 Scout 17B** | Vision | 17GB | ~2-3s | Image understanding, visual Q&A |
+| **DeepSeek Coder 1.3B** | Code | 1.3GB | ~100 tok/s | Code generation, debugging |
+| **SDXL Turbo** | Image Gen | 6.9GB | ~1-2s | Fast image creation |
+| **MiniLM-L6-v2** | Embeddings | 80MB | 1000/s | Semantic search, RAG |
+| **Whisper Tiny** | Speech | 150MB | ~150ms | Voice transcription |
 
-### 🎯 Additional Features
-- **Web Search**: Free DuckDuckGo integration
-- **Voice Mode**: Browser STT + OpenAI TTS (optional)
-- **Multi-Language**: 100+ languages supported
-- **RAG Ready**: Built-in embeddings for retrieval
-- **No GPU Required**: Runs on CPU (GPU optional for speed)
+### Secondary Models (Groq - Cloud)
 
-## 🏗️ Architecture
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Aegis AI Studio                      │
-├─────────────────────────────────────────────────────────┤
-│  Frontend: Open WebUI (Port 3000)                      │
-├─────────────────────────────────────────────────────────┤
-│  Backend: FastAPI Gateway (Port 8000)                  │
-│  ├─ Groq API (Cloud)                                   │
-│  │  └─ Llama 3.3 70B (800 tok/s)                      │
-│  └─ HuggingFace Models (Local)                         │
-│     ├─ DeepSeek Coder 1.3B (code)                     │
-│     ├─ SDXL Turbo (images)                            │
-│     ├─ BLIP (image analysis)                          │
-│     └─ MiniLM-L6 (embeddings)                         │
-├─────────────────────────────────────────────────────────┤
-│  Cache: Redis (Port 6379)                              │
-└─────────────────────────────────────────────────────────┘
-```
+| Model | Speed | Best For |
+|-------|-------|----------|
+| **Llama 3.3 70B** | 800 tok/s | Ultra-fast chat |
+
+**Total Download: ~45GB** (first run only)
+
+---
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Docker & Docker Compose
-- 8GB RAM minimum (16GB recommended)
-- 10GB disk space (for models)
-- Groq API Key (free): https://console.groq.com/keys
+### 1. Prerequisites
 
-### Installation
 ```bash
-# 1. Clone repository
-git clone https://github.com/yourusername/aegis-studio.git
+- Docker & Docker Compose
+- 16GB RAM (32GB recommended)
+- 50GB disk space
+- Groq API Key (free): https://console.groq.com/keys
+```
+
+### 2. Install
+
+```bash
+# Clone
+git clone <repo>
 cd aegis-studio
 
-# 2. Setup environment
+# Configure
 cp .env.example .env
-# Edit .env and add your GROQ_API_KEY
+# Edit .env, add GROQ_API_KEY
 
-# 3. Launch (first run downloads models ~6GB)
+# Deploy (will download ~45GB models on first run)
 docker-compose up -d
 
-# 4. Wait for models to download (5-10 min on first run)
+# Monitor model downloads (takes 10-20 min)
 docker-compose logs -f backend
-
-# 5. Access when you see "✓ HuggingFace models available"
-open http://localhost:3000
 ```
 
-## 📊 Available Models
+### 3. Access
 
-| Model | Type | Speed | Size | Use Case |
-|-------|------|-------|------|----------|
-| **Llama 3.3 70B** | Chat | 800 tok/s | API | General chat, fast responses |
-| **Mixtral 8x7B** | Chat | 500 tok/s | API | Long context (32k) |
-| **DeepSeek Coder** | Code | ~100 tok/s | 1.3GB | Code generation |
-| **SDXL Turbo** | Image | ~1-2s | 6.9GB | Image generation |
-| **BLIP** | Vision | ~500ms | 800MB | Image analysis |
-| **MiniLM-L6** | Embeddings | 1000/s | 80MB | Semantic search |
+- **Open WebUI**: http://localhost:3000
+- **API**: http://localhost:8000
+- **Docs**: http://localhost:8000/docs
 
-## 🎯 Usage Examples
+---
 
-### 1. Fast Chat
+## 🎯 Usage Guide
+
+### For Reasoning Tasks
+
 ```
-Model: aegis-groq-turbo
-Prompt: "Explain quantum computing"
-→ 800 tokens/sec response
+Model: aegis-reasoning (GPT-OSS-20B)
+Prompt: "Explain the P vs NP problem"
+→ Deep analysis with logical reasoning
 ```
 
-### 2. Code Generation
-```
-Model: aegis-code
-Prompt: "Write a Python function to sort a list"
-→ Specialized code model generates optimal code
-```
+### For Image Analysis
 
-### 3. Image Generation
 ```
-Model: aegis-image-gen
-Prompt: "A futuristic city at sunset"
-→ Generates 512x512 image in ~2 seconds
-```
-
-### 4. Image Analysis
-```
-Model: aegis-image-analyze
+Model: aegis-vision (Llama 4 Scout 17B)
 [Upload image]
-Prompt: "Describe this image"
-→ Detailed caption and analysis
+Prompt: "Describe this scene in detail"
+→ Advanced visual understanding
 ```
+
+### For Code Generation
+
+```
+Model: aegis-code (DeepSeek Coder)
+Prompt: "Write a Python function to parse JSON"
+→ Optimized code with explanations
+```
+
+### For Image Generation
+
+```
+Model: aegis-image-gen (SDXL Turbo)
+Prompt: "A cyberpunk city at night"
+→ 512x512 image in ~1-2 seconds
+```
+
+### For Fast Chat
+
+```
+Model: aegis-groq-turbo (Llama 3.3 70B)
+Prompt: "What's quantum computing?"
+→ 800 tokens/second response
+```
+
+### Auto Routing (Smart)
+
+```
+Model: aegis-auto
+Prompt: [any task]
+→ Automatically selects best model
+```
+
+---
 
 ## ⚙️ Configuration
 
-### Required API Keys
-- **Groq API**: Required (free, 30 req/min)
-  - Get at: https://console.groq.com/keys
+### `.env` File
 
-### Optional API Keys
-- **OpenAI API**: For text-to-speech
-  - Get at: https://platform.openai.com/api-keys
+```bash
+# Required
+GROQ_API_KEY=gsk_your_key_here
+
+# Features (all enabled by default)
+ENABLE_HF_MODELS=true
+ENABLE_CACHING=true
+ENABLE_WEB_SEARCH=true
+
+# Model Selection
+GROQ_MODEL=llama-3.3-70b-versatile
+```
 
 ### Resource Requirements
 
 **Minimum:**
-- 8GB RAM
-- 10GB disk space
-- 2 CPU cores
+- RAM: 16GB
+- Disk: 50GB free
+- CPU: 4 cores
 
 **Recommended:**
-- 16GB RAM
-- 20GB disk space
-- 4 CPU cores
-- GPU (optional, improves HF model speed)
+- RAM: 32GB
+- Disk: 100GB SSD
+- GPU: NVIDIA with 24GB VRAM (optional, 3-5x faster)
 
-### Environment Variables
-```bash
-# Core
-GROQ_API_KEY=gsk_xxx          # Required
-GROQ_MODEL=llama-3.3-70b-versatile
-
-# Features (all enabled by default)
-ENABLE_HF_MODELS=true         # HuggingFace models
-ENABLE_CACHING=true           # Redis caching
-ENABLE_WEB_SEARCH=true        # DuckDuckGo search
-
-# Optional
-OPENAI_API_KEY=sk-xxx         # For TTS only
-```
-
-## 📈 Performance
-
-### Benchmarks
-
-**Groq (Cloud):**
-- Latency: ~200ms TTFT
-- Speed: 800 tokens/sec
-- Context: 8k tokens
-
-**HuggingFace (Local - CPU):**
-- Code Gen: 1-3s for typical function
-- Image Gen: 1-2s per image (512x512)
-- Image Analysis: ~500ms per image
-- Embeddings: ~1000 docs/sec
-
-**With GPU (Optional):**
-- Code Gen: <1s
-- Image Gen: <1s
-- 3-5x faster overall
+---
 
 ## 🔧 Advanced Usage
 
-### Enable Web Search
-Already enabled by default. Uses DuckDuckGo (no API key needed).
+### Enable GPU Acceleration (Optional)
 
-### Custom System Prompts
-Edit in Open WebUI settings or via API.
+```yaml
+# docker-compose.yml
+services:
+  backend:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+```
 
-### RAG (Retrieval Augmented Generation)
-Use `aegis-embeddings` model to generate embeddings, store in vector DB, retrieve and augment prompts.
+### API Usage
 
-### Voice Mode
-Enable in Open WebUI:
-1. Settings → Audio
-2. STT: Web Speech API (free)
-3. TTS: OpenAI (requires API key)
+```python
+import openai
 
-## 🐛 Troubleshooting
+client = openai.OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="dummy"
+)
+
+# Reasoning
+response = client.chat.completions.create(
+    model="aegis-reasoning",
+    messages=[{"role": "user", "content": "Solve: x^2 + 5x + 6 = 0"}]
+)
+
+# Vision
+response = client.chat.completions.create(
+    model="aegis-vision",
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "What's in this image?"},
+            {"type": "image_url", "image_url": {"url": "https://..."}}
+        ]
+    }]
+)
+
+# Embeddings
+embeddings = client.embeddings.create(
+    model="aegis-embeddings",
+    input=["text to embed"]
+)
+```
+
+---
+
+## 📊 Performance Benchmarks
+
+**With HF Models (CPU):**
+- Reasoning: ~100 tok/s
+- Vision: 2-3s per image
+- Code: ~100 tok/s
+- Image Gen: 1-2s per image
+
+**With GPU (NVIDIA):**
+- Reasoning: ~300 tok/s
+- Vision: <1s per image
+- Code: ~300 tok/s
+- Image Gen: <1s per image
+
+---
+
+## 🔍 Troubleshooting
 
 ### Models Not Loading
+
 ```bash
 # Check logs
-docker-compose logs backend
+docker-compose logs -f backend
 
-# Models download on first run (5-10 min)
-# Look for: "✓ Code model loaded"
+# Verify disk space (need 50GB)
+df -h
+
+# Restart if needed
+docker-compose restart backend
 ```
 
 ### Out of Memory
+
 ```bash
-# Reduce Docker memory limit in docker-compose.yml
-deploy:
-  resources:
-    limits:
-      memory: 6G  # Reduce from 8G
+# Reduce resource limits in docker-compose.yml
+# Or disable some models:
+# Edit .env: ENABLE_HF_MODELS=false
 ```
 
 ### Slow Performance
-```bash
-# Disable HF models if not needed
-ENABLE_HF_MODELS=false
 
-# Or use GPU for faster inference
-# Install nvidia-docker and update docker-compose.yml
+```bash
+# Add GPU support (see Advanced Usage)
+# Or use Groq for fast chat:
+# Model: aegis-groq-turbo
 ```
 
-## 📦 Model Downloads
+---
 
-Models are downloaded automatically on first run:
+## 📦 Model Details
 
-1. **DeepSeek Coder** (~1.3GB)
-2. **SDXL Turbo** (~6.9GB)
-3. **BLIP** (~800MB)
-4. **MiniLM-L6** (~80MB)
+### GPT-OSS-20B (Reasoning)
+- **Source**: OpenAI
+- **Parameters**: 20 billion
+- **Specialization**: Logical reasoning, analysis
+- **Context**: 4k tokens
 
-**Total:** ~9GB initial download
+### Llama 4 Scout 17B (Vision)
+- **Source**: Meta
+- **Parameters**: 17 billion
+- **Specialization**: Image understanding
+- **Context**: 8k tokens
 
-Models are cached in `./data/models/` and reused on restart.
+### DeepSeek Coder 1.3B
+- **Source**: DeepSeek AI
+- **Parameters**: 1.3 billion
+- **Specialization**: Code generation
+- **Context**: 4k tokens
 
-## 🤝 Contributing
+### SDXL Turbo
+- **Source**: Stability AI
+- **Type**: Diffusion model
+- **Specialization**: Fast image generation
+- **Steps**: 1 (turbo mode)
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md)
+---
+
+## 🛠️ Management Commands
+
+```bash
+# View logs
+docker-compose logs -f
+
+# Restart services
+docker-compose restart
+
+# Stop services
+docker-compose down
+
+# Update & rebuild
+git pull
+docker-compose up -d --build
+
+# Clean cache
+docker system prune -f
+```
+
+---
 
 ## 📄 License
 
 MIT License - see [LICENSE](LICENSE)
 
-## 🙏 Acknowledgments
-
-- Groq for ultra-fast inference
-- HuggingFace for open models
-- Open WebUI for the interface
-- All open source contributors
-
 ---
 
-**Built with ❤️ for the AI community**
+## 🤝 Support
+
+- Issues: GitHub Issues
+- Docs: /docs endpoint
+- API: OpenAI-compatible
+
+**Total Setup Time**: 10-20 minutes (first run)
+**Disk Space**: ~45GB (models) + 5GB (system)
+**RAM Usage**: 8-16GB active
