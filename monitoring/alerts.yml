@@ -1,0 +1,71 @@
+# monitoring/alerts.yml - Prometheus Alert Rules
+
+groups:
+  - name: aegis_alerts
+    interval: 30s
+    rules:
+      # High error rate
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: aegis-backend
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%)"
+      
+      # Slow response time
+      - alert: SlowResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 10m
+        labels:
+          severity: warning
+          service: aegis-backend
+        annotations:
+          summary: "Slow API response time"
+          description: "95th percentile response time is {{ $value }}s (threshold: 5s)"
+      
+      # Rate limit approaching
+      - alert: RateLimitApproaching
+        expr: (rate_limit_used / rate_limit_total) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: aegis-backend
+        annotations:
+          summary: "Rate limit usage high"
+          description: "Using {{ $value | humanizePercentage }} of rate limit"
+      
+      # Cache down
+      - alert: CacheDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+        annotations:
+          summary: "Redis cache is down"
+          description: "Redis has been down for more than 1 minute"
+      
+      # Low cache hit rate
+      - alert: LowCacheHitRate
+        expr: (rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m]))) < 0.5
+        for: 15m
+        labels:
+          severity: warning
+          service: cache
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value | humanizePercentage }} (threshold: 50%)"
+      
+      # Backend down
+      - alert: BackendDown
+        expr: up{job="aegis-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: aegis-backend
+        annotations:
+          summary: "Aegis backend is down"
+          description: "Backend has been unreachable for more than 1 minute"

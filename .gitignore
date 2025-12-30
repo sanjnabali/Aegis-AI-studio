@@ -1,21 +1,49 @@
-# Virtual environments
-venv/
-env/
-
-# Python cache
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
 
-# Model files
-backend/app/models/    # if this contains large LLM model files
-
-# Logs
-*.log
-llama.log
-
-# Data folders
-Data/
+# Data directories (don't copy into image)
 data/
+logs/
+*.log
 
-# Other unwanted folders
-backend\llama_cpp_python-0.2.90-cp311-cp311-win_amd64.whl
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+README.md
+
+# Tests
+tests/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend (not needed in backend)
+frontend/

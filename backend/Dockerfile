@@ -1,32 +1,68 @@
-# File: backend/Dockerfile
+# ============================================================================
+# Aegis Backend - Optimized Multi-Stage Build
+# ============================================================================
 
-# Step 1: Base OS (Debian Bookworm)
+# Stage 1: Builder (dependencies only)
+FROM python:3.11-slim-bookworm AS builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies
+COPY backend/requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# ============================================================================
+# Stage 2: Runtime (minimal)
+# ============================================================================
 FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
-# Step 2: Install system dependencies
-RUN apt-get update && apt-get install -y build-essential cmake pkg-config && rm -rf /var/lib/apt/lists/*
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* && \
+    apt-get clean
 
-# Step 3: Copy requirements file (path is from the root)
-COPY backend/requirements.txt .
+# Copy installed packages from builder
+COPY --from=builder /install /usr/local
 
-# Step 4: Install our Python libraries
-RUN pip install --no-cache-dir --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+# Create directories with proper permissions
+RUN mkdir -p /app/cache /app/logs /app/models && \
+    chmod 777 /app/cache /app/logs /app/models
 
-# --- This ensures all 3 files are copied with the correct names ---
-# Step 5: Copy ALL THREE models
-RUN mkdir /app/models
-COPY models/llava-v1.6-mistral-7b.Q4_K_M.gguf /app/models/llava-v1.6-mistral-7b.Q4_K_M.gguf
-COPY models/codellama-7b-instruct.Q4_K_M.gguf /app/models/codellama-7b-instruct.Q4_K_M.gguf
-COPY models/mmproj-model-f16.gguf /app/models/mmproj-model-f16.gguf
+# Copy application code
+COPY backend/app /app/app
 
-# Step 6: Verify the files
-RUN ls -lh /app/models
+# Expose port
+EXPOSE 8000
 
-# Step 7: Copy our application code (path is from the root)
-COPY ./backend/app /app/app
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
-# Step 8: Define the run command
-CMD ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    # HuggingFace cache (if using local models)
+    TRANSFORMERS_CACHE=/app/models \
+    HF_HOME=/app/models \
+    # Optimize Python
+    PYTHONOPTIMIZE=1
+
+# Run application (optimized)
+CMD ["python", "-m", "uvicorn", "app.main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--workers", "1", \
+     "--loop", "uvloop"]

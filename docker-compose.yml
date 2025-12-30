@@ -1,49 +1,174 @@
+version: '3.8'
+
 services:
-  # Service 1: Our "Brain" (the FastAPI Backend)
+  # ==========================================================================
+  # BACKEND - FastAPI Gateway
+  # ==========================================================================
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
     container_name: aegis-backend
+    restart: unless-stopped
     ports:
       - "8000:8000"
+    
+    environment:
+      # API Keys
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      
+      # Model Configuration
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.1-8b-instant"}
+      - GROQ_MAX_TOKENS=${GROQ_MAX_TOKENS:-8000}
+      
+      # Features
+      - ENABLE_WEB_SEARCH=${ENABLE_WEB_SEARCH:-true}
+      - ENABLE_CACHING=${ENABLE_CACHING:-true}
+      - ENABLE_STREAMING=${ENABLE_STREAMING:-true}
+      
+      # HuggingFace (Optional)
+      - ENABLE_HF_MODELS=${ENABLE_HF_MODELS:-false}
+      - HF_CACHE_DIR=/app/models
+      
+      # Performance
+      - REQUEST_TIMEOUT=${REQUEST_TIMEOUT:-120}
+      - CACHE_TTL=${CACHE_TTL:-3600}
+      
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    
     volumes:
-      - ./backend/app:/app/app
+      # Application code (read-only for security)
+      - ./backend/app:/app/app:ro
+      
+      # Persistent data
+      - ./data/cache:/app/cache
+      - ./data/logs:/app/logs
+      - ./data/models:/app/models  # HF model cache (if enabled)
+    
     networks:
-      - aegis-net
+      - aegis-network
+    
+    depends_on:
+      redis:
+        condition: service_healthy
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # Resource limits (adjust based on your system)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
-  # Service 2: Our "Face" (The Official Image)
+  # ==========================================================================
+  # REDIS - Caching Layer
+  # ==========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: aegis-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    
+    volumes:
+      - ./data/redis:/data
+    
+    networks:
+      - aegis-network
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================================================
+  # FRONTEND - Open WebUI
+  # ==========================================================================
   frontend:
-    # --- THIS IS THE CHANGE ---
-    # We are no longer building the frontend. We are using the
-    # official, pre-built image, which is faster and simpler.
     image: ghcr.io/open-webui/open-webui:main
     container_name: aegis-frontend
+    restart: unless-stopped
     ports:
-      - "3000:8080"
+      - "${FRONTEND_PORT:-3000}:8080"
+    
     environment:
-      # --- This is our "magic glue" ---
-      - 'OPENAI_API_BASE_URL=http://aegis-backend:8000/v1'
-      - 'OPENAI_API_KEY=dummy-key'
+      # Backend Connection (CRITICAL: Use service name)
+      - OPENAI_API_BASE_URL=http://aegis-backend:8000/v1
+      - OPENAI_API_KEY=dummy-key
       
-      # --- These disable all other backends ---
-      - 'ENABLE_OLLAMA_API=false'
-      - 'WEBUI_DISABLE_MODEL_PULL=true'
-      - 'OLLAMA_BASE_URL=' 
-      - 'GROQ_API_KEY='
+      # Disable Ollama
+      - ENABLE_OLLAMA_API=false
+      - OLLAMA_BASE_URL=
       
-      # --- This fixes the "Model not found" bug ---
-      - 'WEBUI_DISABLE_AUTO_TITLE_GENERATION=false'
-      - 'WEBUI_DEFAULT_MODEL=llava-v1.6-mistral-7b'
+      # Branding
+      - WEBUI_NAME=${WEBUI_NAME:-Aegis AI Studio}
       
-      # --- This is our custom branding ---
-      - 'WEBUI_NAME=Aegis Studio'
+      # Audio (Web API - Free)
+      - ENABLE_AUDIO_API=true
+      - AUDIO_STT_ENGINE=web
+      - AUDIO_TTS_ENGINE=${AUDIO_TTS_ENGINE:-openai}
+      - AUDIO_TTS_API_KEY=${OPENAI_API_KEY:-}
       
-    depends_on:
-      - backend
+      # Default Model
+      - DEFAULT_MODELS=aegis-groq-turbo
+    
+    volumes:
+      - ./data/open-webui:/app/backend/data
+    
     networks:
-      - aegis-net
+      - aegis-network
+    
+    depends_on:
+      backend:
+        condition: service_healthy
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
 
+# ============================================================================
+# NETWORKS
+# ============================================================================
 networks:
-  aegis-net:
+  aegis-network:
     driver: bridge
+    name: aegis-network
+
+# ============================================================================
+# VOLUMES (Named volumes for better management)
+# ============================================================================
+volumes:
+  redis-data:
+    name: aegis-redis-data

@@ -1,0 +1,38 @@
+# deploy/systemd/aegis.service
+# Install: sudo cp aegis.service /etc/systemd/system/
+# Enable: sudo systemctl enable aegis
+# Start: sudo systemctl start aegis
+
+[Unit]
+Description=Aegis AI Studio
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/aegis-studio
+ExecStart=/usr/bin/docker-compose up -d
+ExecStop=/usr/bin/docker-compose down
+ExecReload=/usr/bin/docker-compose restart
+TimeoutStartSec=0
+
+# Restart policy
+Restart=on-failure
+RestartSec=10s
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aegis
+
+# Security
+User=aegis
+Group=aegis
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/aegis-studio
+
+[Install]
+WantedBy=multi-user.target

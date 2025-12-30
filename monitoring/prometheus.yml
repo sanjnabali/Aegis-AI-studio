@@ -1,0 +1,74 @@
+# monitoring/prometheus.yml - Prometheus Configuration
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'aegis-studio'
+    environment: 'production'
+
+# Alertmanager configuration (optional)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  # - "alerts/*.yml"
+
+# Scrape configurations
+scrape_configs:
+  # =========================================================================
+  # Prometheus itself
+  # =========================================================================
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # =========================================================================
+  # Aegis Backend (FastAPI)
+  # =========================================================================
+  - job_name: 'aegis-backend'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['aegis-backend:8000']
+        labels:
+          service: 'backend'
+          component: 'api'
+    
+    # Add authentication if needed
+    # basic_auth:
+    #   username: 'admin'
+    #   password: 'password'
+
+  # =========================================================================
+  # Redis Cache
+  # =========================================================================
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'cache'
+          component: 'redis'
+
+  # =========================================================================
+  # Docker Containers (requires cAdvisor)
+  # =========================================================================
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'infrastructure'
+          component: 'containers'
+
+  # =========================================================================
+  # Node Exporter (system metrics)
+  # =========================================================================
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'infrastructure'
+          component: 'host'
