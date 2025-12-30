@@ -1,0 +1,24 @@
+name: Build Verification
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Verify files
+      run: |
+        test -f backend/requirements.txt
+        test -f backend/Dockerfile
+        echo "✅ Files OK"
+    
+    - name: Build Docker
+      run: |
+        cd backend
+        docker build -t test .
+        echo "✅ Build OK"
