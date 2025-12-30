@@ -11,6 +11,7 @@ import time
 from typing import Optional, AsyncGenerator
 from groq import AsyncGroq
 from loguru import logger
+from PIL import Image
 
 from app.core.config import get_settings
 
@@ -44,23 +45,24 @@ def get_groq_client() -> AsyncGroq:
 # ============================================================================
 
 class UltraLightModels:
-    """Minimal local models - total ~5GB disk"""
+    """Minimal local models - total ~6GB disk"""
     
     def __init__(self):
-        # Only keep these 3 essential models
+        # Essential models
         self.code_model = None          # ~1.3GB (essential for code)
         self.code_tokenizer = None
+        self.vision_model = None        # ~800MB (for image analysis)
+        self.vision_processor = None
         self.embeddings_model = None    # ~80MB (essential for RAG)
         self.stt_model = None           # ~150MB (essential for voice)
         
         # Removed to save space:
         # - Reasoning model (use Groq instead)
-        # - Vision model (use Groq Llama 3.2 Vision if available)
         # - Image generation (too slow on CPU, use external API)
         
         self._load_lock = asyncio.Lock()
         
-        logger.info("🪶 Ultra-lightweight models (5GB total)")
+        logger.info("🪶 Ultra-lightweight models (6GB total with vision)")
     
     async def load_code(self):
         """Load DeepSeek Coder 1.3B (essential for code, 1.3GB)"""
@@ -96,6 +98,50 @@ class UltraLightModels:
             self.code_tokenizer, self.code_model = await loop.run_in_executor(None, _load)
             
             logger.success("✓ DeepSeek Coder loaded (1.3GB)")
+    
+    async def load_vision(self):
+        """Load BLIP for vision (essential for image analysis, 800MB)"""
+        if self.vision_model is not None:
+            return
+        
+        async with self._load_lock:
+            if self.vision_model is not None:
+                return
+            
+            logger.info("⏳ Loading BLIP vision (800MB)...")
+            
+            # Import with proper error handling
+            try:
+                from transformers import BlipProcessor, BlipForConditionalGeneration
+                import torch
+            except Exception as e:
+                logger.error(f"Failed to import vision libraries: {e}")
+                raise
+            
+            loop = asyncio.get_event_loop()
+            
+            def _load():
+                # Load with CPU device explicitly
+                processor = BlipProcessor.from_pretrained(
+                    "Salesforce/blip-image-captioning-base",
+                    cache_dir="/app/models",
+                )
+                
+                model = BlipForConditionalGeneration.from_pretrained(
+                    "Salesforce/blip-image-captioning-base",
+                    cache_dir="/app/models",
+                    torch_dtype=torch.float32,  # Use float32 for CPU stability
+                )
+                
+                # Move to CPU explicitly
+                model = model.to('cpu')
+                model.eval()  # Set to evaluation mode
+                
+                return processor, model
+            
+            self.vision_processor, self.vision_model = await loop.run_in_executor(None, _load)
+            
+            logger.success("✓ BLIP vision loaded (800MB)")
     
     async def load_embeddings(self):
         """Load MiniLM embeddings (essential for RAG, 80MB)"""
@@ -243,6 +289,89 @@ async def hf_code_generate(prompt: str) -> str:
     return await loop.run_in_executor(None, _generate)
 
 
+async def hf_vision_analyze(image, prompt: str = "Describe this image in detail") -> str:
+    """Analyze image with BLIP (local for privacy)"""
+    
+    hf = _get_hf_models()
+    if not hf:
+        return "[HuggingFace models not available]"
+    
+    await hf.load_vision()
+    
+    logger.info("→ Using BLIP for vision (local)")
+    
+    loop = asyncio.get_event_loop()
+    
+    def _analyze():
+        import torch
+        
+        try:
+            # Ensure image is in RGB mode
+            if image.mode != 'RGB':
+                image_rgb = image.convert('RGB')
+            else:
+                image_rgb = image
+            
+            # Resize if too large (BLIP works best with reasonable sizes)
+            max_size = 512
+            if max(image_rgb.size) > max_size:
+                ratio = max_size / max(image_rgb.size)
+                new_size = tuple(int(dim * ratio) for dim in image_rgb.size)
+                image_rgb = image_rgb.resize(new_size, Image.LANCZOS)
+            
+            # Process image for BLIP - unconditional captioning (most reliable)
+            with torch.no_grad():  # Disable gradient computation
+                # Process single image
+                pixel_values = hf.vision_processor(
+                    images=image_rgb,
+                    return_tensors="pt"
+                ).pixel_values
+                
+                # Move to same device as model
+                pixel_values = pixel_values.to(hf.vision_model.device)
+                
+                # Generate caption
+                generated_ids = hf.vision_model.generate(
+                    pixel_values=pixel_values,
+                    max_length=100,
+                    num_beams=3,
+                    early_stopping=True,
+                    no_repeat_ngram_size=2,
+                )
+                
+                # Decode output
+                caption = hf.vision_processor.decode(
+                    generated_ids[0],
+                    skip_special_tokens=True
+                )
+            
+            # Clean up caption
+            caption = caption.strip()
+            
+            # Add context if specific question was asked
+            if prompt and prompt.lower() not in [
+                "describe this image",
+                "describe this image in detail",
+                "what's in this image?",
+                "what is this?",
+                "analyze the image",
+                "what do you see?"
+            ]:
+                caption = f"Image shows: {caption}\n\nRegarding your question '{prompt}': Based on the image, {caption.lower()}"
+            
+            return caption
+            
+        except Exception as e:
+            logger.error(f"Error in vision analysis: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+    
+    result = await loop.run_in_executor(None, _analyze)
+    
+    return result
+
+
 async def hf_speech_to_text(audio_array) -> str:
     """STT with Whisper Tiny (local for privacy)"""
     
@@ -334,6 +463,7 @@ def get_metrics() -> dict:
 __all__ = [
     'groq_stream',
     'hf_code_generate',
+    'hf_vision_analyze',
     'hf_speech_to_text',
     'hf_get_embeddings',
     'unified_stream',

@@ -56,6 +56,18 @@ MODELS = {
         "best_for": "Code generation, debugging (specialized)",
     },
     
+    "aegis-vision": {
+        "id": "aegis-vision",
+        "name": "Aegis Vision (BLIP)",
+        "backend": "hf_vision",
+        "type": "vision",
+        "description": "Image analysis and description",
+        "speed": "~500ms per image",
+        "disk": "~800MB",
+        "ram": "~1GB",
+        "best_for": "Image description, visual Q&A, scene understanding",
+    },
+    
     "aegis-embeddings": {
         "id": "aegis-embeddings",
         "name": "Aegis Embeddings (MiniLM)",
@@ -86,7 +98,7 @@ MODELS = {
         "backend": "auto",
         "type": "chat",
         "description": "Smart routing - Code→Local, Everything else→Groq",
-        "disk": "~1.5GB",
+        "disk": "~2.5GB",
         "best_for": "General use - Let AI decide",
     },
 }
@@ -97,7 +109,6 @@ MODELS = {
 
 REMOVED_FEATURES_INFO = {
     "reasoning": "Use aegis-groq-turbo instead (same quality, 0 disk)",
-    "vision": "Use aegis-groq-turbo with images (Groq has vision support)",
     "image_gen": "Use external API: Stability AI, Replicate, or ComfyUI",
 }
 
@@ -180,21 +191,12 @@ async def stream_generator(request: ChatCompletionRequest):
     model_config = MODELS.get(request.model, MODELS["aegis-auto"])
     backend = model_config["backend"]
     
-    # Check for images (use Groq for vision)
+    # Check for images (use local BLIP for vision)
     has_images = any("images" in msg for msg in messages)
     if has_images:
-        logger.info("🖼️ Vision request → Using Groq")
-        # Note: Groq doesn't fully support vision yet, but will in future
-        # For now, just describe that we can't process images
-        yield f'data: {{"id":"{chat_id}","object":"chat.completion.chunk","model":"{request.model}","choices":[{{"delta":{{"role":"assistant"}},"index":0}}]}}\n\n'
-        
-        info_msg = "Image processing not available in ultra-lightweight mode. For vision tasks, please use: (1) Groq's upcoming vision API, (2) External vision APIs like GPT-4 Vision, or (3) Enable full HF models."
-        
-        chunk_escaped = info_msg.replace('"', '\\"').replace('\n', '\\n')
-        yield f'data: {{"id":"{chat_id}","model":"{request.model}","choices":[{{"delta":{{"content":"{chunk_escaped}"}},"index":0}}]}}\n\n'
-        yield f'data: {{"id":"{chat_id}","model":"{request.model}","choices":[{{"delta":{{}},"index":0,"finish_reason":"stop"}}]}}\n\n'
-        yield "data: [DONE]\n\n"
-        return
+        logger.info("🖼️ Vision request → Using local BLIP")
+        logger.debug(f"Image count: {sum(len(msg.get('images', [])) for msg in messages)}")
+        backend = "hf_vision"
     
     # Send role
     yield f'data: {{"id":"{chat_id}","object":"chat.completion.chunk","model":"{request.model}","choices":[{{"delta":{{"role":"assistant"}},"index":0}}]}}\n\n'
@@ -216,6 +218,56 @@ async def stream_generator(request: ChatCompletionRequest):
                 yield f'data: {{"id":"{chat_id}","model":"{request.model}","choices":[{{"delta":{{"content":"{chunk_escaped}"}},"index":0}}]}}\n\n'
             
             stream = None
+        
+        elif backend == "hf_vision":
+            # Local vision with BLIP
+            last_msg = messages[-1]
+            if "images" in last_msg and last_msg["images"]:
+                try:
+                    from PIL import Image
+                    import base64
+                    
+                    image_data = last_msg["images"][0]
+                    
+                    # Handle base64 data URLs (from Open WebUI)
+                    if image_data.startswith('data:image'):
+                        # Extract base64 data
+                        base64_data = image_data.split(',', 1)[1]
+                        image_bytes = base64.b64decode(base64_data)
+                        image = Image.open(BytesIO(image_bytes))
+                    elif image_data.startswith('http'):
+                        # Handle regular URLs
+                        import httpx
+                        async with httpx.AsyncClient(timeout=30.0) as client:
+                            response = await client.get(image_data)
+                            image = Image.open(BytesIO(response.content))
+                    else:
+                        # Assume it's raw base64
+                        image_bytes = base64.b64decode(image_data)
+                        image = Image.open(BytesIO(image_bytes))
+                    
+                    # Analyze with BLIP
+                    caption = await models.hf_vision_analyze(image, last_msg["content"])
+                    
+                    full_response.append(caption)
+                    
+                    chunk_escaped = caption.replace('"', '\\"').replace('\n', '\\n')
+                    yield f'data: {{"id":"{chat_id}","model":"{request.model}","choices":[{{"delta":{{"content":"{chunk_escaped}"}},"index":0}}]}}\n\n'
+                    
+                    stream = None
+                except Exception as e:
+                    logger.error(f"Vision error: {e}")
+                    error_msg = f"[Error analyzing image: {str(e)}]"
+                    error_escaped = error_msg.replace('"', '\\"')
+                    yield f'data: {{"id":"{chat_id}","choices":[{{"delta":{{"content":"{error_escaped}"}},"index":0}}]}}\n\n'
+                    stream = None
+            else:
+                error_msg = "No image provided for vision request"
+                error_escaped = error_msg.replace('"', '\\"')
+                yield f'data: {{"id":"{chat_id}","choices":[{{"delta":{{"content":"{error_escaped}"}},"index":0}}]}}\n\n'
+                yield f'data: {{"id":"{chat_id}","model":"{request.model}","choices":[{{"delta":{{}},"index":0,"finish_reason":"stop"}}]}}\n\n'
+                yield "data: [DONE]\n\n"
+                return
         
         elif backend == "groq":
             # Groq streaming
@@ -363,8 +415,8 @@ async def get_metrics():
         "cache": get_cache_stats(),
         "system": {
             "mode": "ultra-lightweight",
-            "total_disk_usage": "~5GB",
-            "local_models": ["DeepSeek Coder", "MiniLM", "Whisper Tiny"],
+            "total_disk_usage": "~6GB",
+            "local_models": ["DeepSeek Coder", "BLIP Vision", "MiniLM", "Whisper Tiny"],
             "primary_engine": "Groq (0 disk)",
             "removed_features": REMOVED_FEATURES_INFO,
         }
@@ -387,11 +439,11 @@ async def health_check():
             "models": {
                 "total": len(MODELS),
                 "groq": 1,
-                "local": 3,
+                "local": 4,
             },
             "system": {
                 "mode": "ultra-lightweight",
-                "disk_usage": "~5GB total",
+                "disk_usage": "~6GB total",
                 "free_ram_gb": round(ram_free_gb, 1),
                 "recommendation": "Use aegis-groq-turbo for best performance (0 disk/RAM)",
             },
@@ -417,6 +469,7 @@ async def get_features():
         "available": {
             "chat": "✅ Groq Llama 3.3 70B (800 tok/s, 0 disk)",
             "code": "✅ DeepSeek Coder 1.3B (local, 1.3GB)",
+            "vision": "✅ BLIP (local, 800MB)",
             "embeddings": "✅ MiniLM (local, 80MB)",
             "speech_to_text": "✅ Whisper Tiny (local, 150MB)",
         },
@@ -424,15 +477,6 @@ async def get_features():
             "reasoning_model": {
                 "removed": "Phi-2 (4GB)",
                 "alternative": "Use aegis-groq-turbo (same quality, 0 disk)",
-            },
-            "vision_model": {
-                "removed": "BLIP Large (3GB)",
-                "alternatives": [
-                    "Groq Llama 3.2 Vision API (when available)",
-                    "OpenAI GPT-4 Vision API",
-                    "Claude 3 Vision API",
-                    "Enable full HF models if needed",
-                ],
             },
             "image_generation": {
                 "removed": "SDXL Turbo (7GB)",
@@ -444,7 +488,7 @@ async def get_features():
                 ],
             },
         },
-        "total_disk_saved": "~10GB (from 15GB → 5GB)",
+        "total_disk_saved": "~6GB (from 15GB → 6GB, included vision!)",
     }
 
 

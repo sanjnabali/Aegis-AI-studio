@@ -66,9 +66,10 @@ async def lifespan(app: FastAPI):
             logger.info("🤗 HuggingFace models: ENABLED")
             logger.info("   Models will load on-demand:")
             logger.info("   • DeepSeek Coder (1.3GB) - for code")
+            logger.info("   • BLIP Vision (800MB) - for images")
             logger.info("   • MiniLM (80MB) - for embeddings")
             logger.info("   • Whisper Tiny (150MB) - for voice")
-            logger.info("   Total: ~1.5GB (minimal disk usage)")
+            logger.info("   Total: ~2.5GB (lightweight with vision!)")
         else:
             logger.warning("⚠️  HuggingFace models: DISABLED")
             logger.info("💡 Set ENABLE_HF_MODELS=true in .env to enable")
@@ -89,10 +90,10 @@ async def lifespan(app: FastAPI):
         logger.success("✅ AEGIS STUDIO READY - ULTRA-LIGHTWEIGHT MODE")
         logger.info("=" * 60)
         logger.info("📊 System Info:")
-        logger.info("   • Mode: Ultra-Lightweight (~5GB total)")
+        logger.info("   • Mode: Ultra-Lightweight (~6GB total)")
         logger.info("   • Primary: Groq (0 disk, 800 tok/s)")
-        logger.info("   • Local: Only essentials (1.5GB)")
-        logger.info("   • Strategy: Cloud-first, minimal local storage")
+        logger.info("   • Local: Essentials + Vision (2.5GB)")
+        logger.info("   • Strategy: Cloud-first, local vision included")
         logger.info("=" * 60)
         logger.info("🌐 API Endpoints:")
         logger.info("   • Health: /health")
@@ -149,16 +150,16 @@ async def root():
         "name": "Aegis AI Studio",
         "version": "2.0.0-ultralight",
         "mode": "ultra-lightweight",
-        "disk_usage": "~5GB total",
-        "description": "OpenAI-compatible API with minimal disk usage",
+        "disk_usage": "~6GB total (with vision)",
+        "description": "OpenAI-compatible API with vision support",
         "docs": "/docs",
         "health": "/health",
         "models": "/v1/models",
         "features": "/v1/features",
         "strategy": {
             "primary": "Groq (0 disk, 800 tok/s)",
-            "local": "Only essentials (1.5GB)",
-            "removed": "Vision/Image gen (use external APIs)",
+            "local": "Code + Vision + Embeddings + Voice (2.5GB)",
+            "removed": "Image gen only (use external APIs)",
         },
     }
 
@@ -169,7 +170,7 @@ async def health_check():
     return {
         "status": "healthy",
         "mode": "ultra-lightweight",
-        "disk_usage": "~5GB",
+        "disk_usage": "~6GB (with vision)",
         "endpoints": {
             "health": "/health",
             "models": "/v1/models", 
