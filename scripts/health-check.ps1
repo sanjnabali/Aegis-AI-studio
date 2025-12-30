@@ -1,33 +1,41 @@
-# Health check script
-Write-Host "🔍 Checking Aegis Studio Health..." -ForegroundColor Blue
+Write-Host "🔍 Aegis Studio - Health Check" -ForegroundColor Blue
+Write-Host ""
 
-# Check containers
-Write-Host "`n📦 Container Status:" -ForegroundColor Yellow
+# Containers
+Write-Host "📦 Containers:" -ForegroundColor Yellow
 docker-compose ps
 
-# Check backend health
+# Backend health
 Write-Host "`n🔧 Backend Health:" -ForegroundColor Yellow
 try {
     $health = Invoke-RestMethod -Uri "http://localhost:8000/health"
-    Write-Host "Status: $($health.status)" -ForegroundColor Green
+    Write-Host "  Status: $($health.status)" -ForegroundColor Green
+    Write-Host "  Primary Model: $($health.models.primary)" -ForegroundColor Cyan
 } catch {
-    Write-Host "Backend unreachable!" -ForegroundColor Red
+    Write-Host "  ❌ Backend unreachable" -ForegroundColor Red
 }
 
-# Check models
+# Models
 Write-Host "`n🤖 Available Models:" -ForegroundColor Yellow
 try {
     $models = Invoke-RestMethod -Uri "http://localhost:8000/v1/models"
-    Write-Host "Found $($models.data.Count) models" -ForegroundColor Green
+    Write-Host "  Found $($models.data.Count) models:" -ForegroundColor Green
+    foreach ($model in $models.data) {
+        Write-Host "    • $($model.id)" -ForegroundColor Cyan
+    }
 } catch {
-    Write-Host "Failed to fetch models" -ForegroundColor Red
+    Write-Host "  ❌ Failed to fetch models" -ForegroundColor Red
 }
 
-# Check metrics
-Write-Host "`n📊 Performance Metrics:" -ForegroundColor Yellow
+# Cache
+Write-Host "`n💾 Cache Status:" -ForegroundColor Yellow
 try {
     $metrics = Invoke-RestMethod -Uri "http://localhost:8000/v1/metrics"
-    Write-Host "Groq: $($metrics.groq.requests) requests" -ForegroundColor Green
+    Write-Host "  Hit Rate: $($metrics.cache.hit_rate)" -ForegroundColor Green
+    Write-Host "  Hits: $($metrics.cache.hits)" -ForegroundColor Cyan
+    Write-Host "  Misses: $($metrics.cache.misses)" -ForegroundColor Cyan
 } catch {
-    Write-Host "Failed to fetch metrics" -ForegroundColor Red
+    Write-Host "  ⚠️  Cache metrics unavailable" -ForegroundColor Yellow
 }
+
+Write-Host ""

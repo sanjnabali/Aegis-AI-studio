@@ -4,16 +4,16 @@ from typing import Optional
 class Settings(BaseSettings):
     # API Keys
     groq_api_key: str = ""
-    gemini_api_key: str = ""  # Optional now
+    gemini_api_key: str = ""
     openai_api_key: str = ""
     
     # Models
-    groq_model: str = "llama-3.1-8b-instant"
+    groq_model: str = "llama-3.3-70b-versatile"
     groq_max_tokens: int = 8000
     
     # Features
     enable_caching: bool = True
-    enable_hf_models: bool = False  # NEW
+    enable_hf_models: bool = True
     enable_web_search: bool = True
     enable_streaming: bool = True
     enable_voice_optimization: bool = True

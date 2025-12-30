@@ -1,5 +1,5 @@
 # ============================================================================
-# Aegis Backend - Optimized Multi-Stage Build
+# Aegis Backend - Optimized for HuggingFace Models
 # ============================================================================
 
 # Stage 1: Builder (dependencies only)
@@ -47,18 +47,21 @@ COPY backend/app /app/app
 EXPOSE 8000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app \
-    # HuggingFace cache (if using local models)
+    # HuggingFace cache
     TRANSFORMERS_CACHE=/app/models \
     HF_HOME=/app/models \
+    HF_HUB_CACHE=/app/models \
     # Optimize Python
-    PYTHONOPTIMIZE=1
+    PYTHONOPTIMIZE=1 \
+    # Disable HF telemetry
+    HF_HUB_DISABLE_TELEMETRY=1
 
 # Run application (optimized)
 CMD ["python", "-m", "uvicorn", "app.main:app", \

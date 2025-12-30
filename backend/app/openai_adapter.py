@@ -37,44 +37,47 @@ settings = get_settings()
 router = APIRouter()
 
 # ============================================================================
-# MODEL REGISTRY (Updated for optimized setup)
+# MODEL REGISTRY (Updated for llama-3.3-70b-versatile)
 # ============================================================================
 
 MODELS = {
     "aegis-groq-turbo": {
         "id": "aegis-groq-turbo",
-        "name": "Aegis Groq (Ultra-Fast)",
+        "name": "Aegis Groq Llama 3.3 70B (Ultra-Fast)",
         "backend": "groq",
-        "description": "Llama 3.3 70B via Groq - Maximum speed",
+        "description": "Llama 3.3 70B via Groq - Maximum speed and capability",
         "speed": "800 tok/s",
         "ttft": "~200ms",
         "context": "8k tokens",
         "best_for": "Chat, general tasks, real-time responses",
         "rate_limit": "30 req/min",
         "provider": "Groq Cloud",
+        "model_string": "llama-3.3-70b-versatile",
     },
     "aegis-auto": {
         "id": "aegis-auto",
         "name": "Aegis Auto (Smart Routing)",
         "backend": "auto",
         "description": "Intelligent routing - uses best model for each task",
-        "speed": "Variable (200-800 tok/s)",
+        "speed": "Variable (up to 800 tok/s)",
         "context": "8k tokens",
         "best_for": "Mixed workloads, code + chat",
         "rate_limit": "30 req/min",
         "provider": "Auto-select",
+        "model_string": "auto",
     },
     "aegis-groq-mixtral": {
         "id": "aegis-groq-mixtral",
-        "name": "Aegis Mixtral (Balanced)",
+        "name": "Aegis Mixtral 8x7B (Long Context)",
         "backend": "groq",
-        "description": "Mixtral 8x7B via Groq - Good balance",
+        "description": "Mixtral 8x7B via Groq - Extended context window",
         "speed": "500 tok/s",
         "ttft": "~300ms",
         "context": "32k tokens",
-        "best_for": "Long context, complex reasoning",
+        "best_for": "Long documents, complex analysis",
         "rate_limit": "30 req/min",
         "provider": "Groq Cloud",
+        "model_string": "mixtral-8x7b-32768",
     },
 }
 
@@ -83,22 +86,24 @@ if settings.enable_hf_models:
     MODELS.update({
         "aegis-code": {
             "id": "aegis-code",
-            "name": "Aegis Code (Specialized)",
+            "name": "Aegis Code (DeepSeek 1.3B)",
             "backend": "hf_code",
-            "description": "DeepSeek Coder 1.3B - Code generation",
+            "description": "DeepSeek Coder 1.3B - Specialized code generation",
             "speed": "~100 tok/s (local)",
             "context": "4k tokens",
-            "best_for": "Code generation, debugging",
+            "best_for": "Code generation, debugging, refactoring",
             "provider": "HuggingFace (Local)",
+            "model_string": "deepseek-coder-1.3b",
         },
         "aegis-image": {
             "id": "aegis-image",
-            "name": "Aegis Image (Generator)",
+            "name": "Aegis Image (SDXL Turbo)",
             "backend": "hf_image",
-            "description": "SDXL Turbo - Fast image generation",
+            "description": "SDXL Turbo - Fast 1-step image generation",
             "speed": "~1s per image",
-            "best_for": "Image generation",
+            "best_for": "Fast image generation, prototyping",
             "provider": "HuggingFace (Local)",
+            "model_string": "sdxl-turbo",
         },
     })
 
@@ -162,7 +167,7 @@ def _process_messages(request: ChatCompletionRequest) -> list:
             text_parts = [
                 part.text
                 for part in msg.content
-                if part.type == "text" and part.text
+                if hasattr(part, 'type') and part.type == "text" and hasattr(part, 'text') and part.text
             ]
             
             if text_parts:
@@ -201,7 +206,7 @@ async def stream_generator(request: ChatCompletionRequest):
     # Determine backend (zero overhead lookup)
     model_config = MODELS.get(request.model)
     if not model_config:
-        logger.warning(f"Unknown model '{request.model}', using groq-turbo")
+        logger.warning(f"Unknown model '{request.model}', using aegis-groq-turbo")
         request.model = "aegis-groq-turbo"
         model_config = MODELS["aegis-groq-turbo"]
     
@@ -225,7 +230,9 @@ async def stream_generator(request: ChatCompletionRequest):
             chunk_size = 50
             for i in range(0, len(cached), chunk_size):
                 chunk = cached[i:i+chunk_size]
-                yield f'data: {{"id":"{chat_id}","object":"chat.completion.chunk","model":"{request.model}","choices":[{{"delta":{{"content":"{chunk}"}},"index":0}}]}}\n\n'
+                # Escape quotes in chunk
+                chunk_escaped = chunk.replace('"', '\\"').replace('\n', '\\n')
+                yield f'data: {{"id":"{chat_id}","object":"chat.completion.chunk","model":"{request.model}","choices":[{{"delta":{{"content":"{chunk_escaped}"}},"index":0}}]}}\n\n'
             
             # Send finish
             yield f'data: {{"id":"{chat_id}","object":"chat.completion.chunk","model":"{request.model}","choices":[{{"delta":{{}},"index":0,"finish_reason":"stop"}}]}}\n\n'
@@ -252,9 +259,11 @@ async def stream_generator(request: ChatCompletionRequest):
     try:
         # Route to appropriate backend
         if backend == "groq":
+            # Use the model string from config
+            groq_model = model_config.get("model_string", "llama-3.3-70b-versatile")
             stream = models.groq_stream(
                 messages,
-                model=request.model,
+                model=groq_model,
                 max_tokens=request.max_tokens,
                 temperature=request.temperature,
             )
@@ -376,7 +385,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
     
     # Validate model (fast path)
     if request.model not in MODELS:
-        logger.warning(f"Unknown model '{request.model}', defaulting to groq-turbo")
+        logger.warning(f"Unknown model '{request.model}', defaulting to aegis-groq-turbo")
         request.model = "aegis-groq-turbo"
     
     # Log request (minimal overhead)
@@ -426,18 +435,26 @@ async def get_performance_metrics():
             "total": len(MODELS),
         },
         "benchmark": {
-            "groq": {
+            "groq_llama_3_3_70b": {
                 "speed": "800 tok/s",
                 "ttft": "~200ms",
                 "rate_limit": "30 req/min",
                 "context": "8k tokens",
-                "recommended_for": "General chat, fast responses",
+                "recommended_for": "General chat, fast responses, real-time",
+            },
+            "groq_mixtral_8x7b": {
+                "speed": "500 tok/s",
+                "ttft": "~300ms",
+                "rate_limit": "30 req/min",
+                "context": "32k tokens",
+                "recommended_for": "Long documents, complex analysis",
             },
             "hf_code": {
                 "speed": "~100 tok/s (local)",
                 "latency": "1-3s",
                 "context": "4k tokens",
                 "recommended_for": "Code generation",
+                "enabled": settings.enable_hf_models,
             },
         },
         "system": {
@@ -449,7 +466,7 @@ async def get_performance_metrics():
 
 
 # ============================================================================
-# AVAILABLE MODELS INFO ENDPOINT (New)
+# AVAILABLE MODELS INFO ENDPOINT
 # ============================================================================
 
 @router.get("/v1/models/info")
@@ -470,7 +487,7 @@ async def get_models_info():
 
 
 # ============================================================================
-# HEALTH CHECK (Detailed)
+# HEALTH CHECK
 # ============================================================================
 
 @router.get("/v1/health")
@@ -509,10 +526,11 @@ async def health_check():
             "models": {
                 "available": list(MODELS.keys()),
                 "count": len(MODELS),
+                "primary": "llama-3.3-70b-versatile",
             },
             "performance": {
                 "cache_hit_rate": get_cache_stats().get("hit_rate", "0%"),
-                "total_requests": models.get_metrics()["groq"].get("requests", 0),
+                "total_requests": model_metrics.get("groq", {}).get("requests", 0),
             }
         }
     except Exception as e:

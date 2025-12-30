@@ -184,6 +184,7 @@ async def groq_stream(
     """
     
     # Fast defaults
+    # Line ~145
     model = model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
     max_tokens = max_tokens or 8000
     
