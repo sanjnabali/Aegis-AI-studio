@@ -1,0 +1,37 @@
+services:
+  # Backend API
+  - type: web
+    name: aegis-backend
+    runtime: docker
+    region: oregon
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ENABLE_HF_MODELS
+        value: "true"
+      - key: ENABLE_CACHING
+        value: "true"
+      - key: ENABLE_WEB_SEARCH
+        value: "true"
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # Frontend (Open WebUI)
+  - type: web
+    name: aegis-frontend
+    runtime: image
+    region: oregon
+    plan: free
+    image:
+      url: ghcr.io/open-webui/open-webui:main
+    envVars:
+      - key: OPENAI_API_BASE_URL
+        value: https://aegis-backend.onrender.com/v1
+      - key: OPENAI_API_KEY
+        value: sk-aegis
+      - key: WEBUI_AUTH
+        value: "true"
+    autoDeploy: true
