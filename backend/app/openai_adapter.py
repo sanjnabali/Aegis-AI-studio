@@ -66,18 +66,18 @@ MODELS = {
         "provider": "Auto-select",
         "model_string": "auto",
     },
-    "aegis-groq-mixtral": {
-        "id": "aegis-groq-mixtral",
-        "name": "Aegis Mixtral 8x7B (Long Context)",
+    "aegis-groq-whisper": {
+        "id": "aegis-groq-whisper",
+        "name": "whisper-large-v3-turbo",
         "backend": "groq",
-        "description": "Mixtral 8x7B via Groq - Extended context window",
+        "description": "A fine-tuned version of a pruned Whisper Large V3 designed for fast, multilingual transcription tasks.",
         "speed": "500 tok/s",
         "ttft": "~300ms",
         "context": "32k tokens",
         "best_for": "Long documents, complex analysis",
         "rate_limit": "30 req/min",
         "provider": "Groq Cloud",
-        "model_string": "mixtral-8x7b-32768",
+        "model_string": "whisper-large-v3-turbo",
     },
 }
 
@@ -442,7 +442,7 @@ async def get_performance_metrics():
                 "context": "8k tokens",
                 "recommended_for": "General chat, fast responses, real-time",
             },
-            "groq_mixtral_8x7b": {
+            "groq_whisper_large_v3_turbo": {
                 "speed": "500 tok/s",
                 "ttft": "~300ms",
                 "rate_limit": "30 req/min",
@@ -481,7 +481,10 @@ async def get_models_info():
             "fastest": "aegis-groq-turbo",
             "balanced": "aegis-auto",
             "code": "aegis-code" if settings.enable_hf_models else "aegis-groq-turbo",
-            "long_context": "aegis-groq-mixtral",
+            "image": "aegis-image" if settings.enable_hf_models else "N/A",
+            "transcription": "aegis-groq-whisper",
+            "chat": "aegis-groq-turbo",
+
         }
     }
 
@@ -514,6 +517,9 @@ async def health_check():
         
         # Check HF
         hf_status = "enabled" if settings.enable_hf_models else "disabled"
+        
+        # Get metrics
+        model_metrics = models.get_metrics()
         
         return {
             "status": "healthy",
