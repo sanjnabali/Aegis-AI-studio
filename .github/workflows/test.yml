@@ -6,11 +6,6 @@ on:
   pull_request:
     branches: [ main, develop ]
 
-permissions:
-  contents: read
-  actions: read
-  security-events: write
-
 env:
   PYTHON_VERSION: "3.11"
 
@@ -23,60 +18,59 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - name: Install lint dependencies
+      - name: Install lint tools
         run: |
-          pip install --upgrade pip
-          pip install black flake8 pylint mypy isort
+          pip install black flake8 isort mypy
 
-      - name: Black formatting check
-        run: black --check backend/app || true
+      - name: Black
+        run: black --check backend/app
 
-      - name: Isort check
-        run: isort --check-only backend/app || true
+      - name: isort
+        run: isort --check-only backend/app
 
-      - name: Flake8 lint
-        run: flake8 backend/app --max-line-length=100 --exclude=__pycache__ || true
+      - name: flake8
+        run: flake8 backend/app --max-line-length=100
 
-      - name: MyPy type check
-        run: mypy backend/app --ignore-missing-imports || true
+      - name: MyPy
+        run: mypy backend/app --ignore-missing-imports
+        continue-on-error: true
 
   # ==========================================================================
-  # SECURITY SCANNING
+  # SECURITY SCAN
   # ==========================================================================
   security:
     name: Security Scan
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install security tools
         run: |
-          pip install --upgrade pip
           pip install bandit safety
 
       - name: Bandit scan
-        run: bandit -r backend/app -f json -o bandit-report.json || true
+        run: bandit -r backend/app -f json -o bandit-report.json
+        continue-on-error: true
 
-      - name: Dependency scan (Safety)
-        run: safety check --file=backend/requirements.txt || true
+      - name: Safety scan
+        run: safety check --file=backend/requirements.txt
+        continue-on-error: true
 
-      - name: Upload security reports
+      - name: Upload security report
         uses: actions/upload-artifact@v4
         with:
           name: security-reports
@@ -94,94 +88,69 @@ jobs:
         image: redis:7-alpine
         ports:
           - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
 
-      - name: Install test dependencies
+      - name: Install dependencies
         run: |
-          pip install --upgrade pip
           pip install -r backend/requirements.txt
-          pip install pytest pytest-asyncio pytest-cov pytest-mock
+          pip install pytest pytest-asyncio pytest-cov
 
       - name: Run unit tests
         env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY_TEST }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY_TEST }}
           REDIS_HOST: localhost
           REDIS_PORT: 6379
-          ENABLE_CACHING: true
         run: |
-          pytest tests/ \
+          pytest tests \
             --cov=backend/app \
             --cov-report=xml \
-            --cov-report=html \
-            --cov-report=term \
-            -v || true
+            -v
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        with:
-          files: coverage.xml
-          flags: unittests
-          name: codecov-aegis
-
-      - name: Upload test artifacts
-        if: always()
+      - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
-          path: |
-            coverage.xml
-            htmlcov/
+          name: coverage
+          path: coverage.xml
 
   # ==========================================================================
-  # INTEGRATION TESTS
+  # INTEGRATION TESTS (Docker Compose v2)
   # ==========================================================================
   integration:
     name: Integration Tests
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Build Docker images
-        run: docker-compose build
+      - name: Build containers
+        run: docker compose build
 
       - name: Start services
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY_TEST }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY_TEST }}
         run: |
-          docker-compose up -d
-          sleep 25
+          docker compose up -d
+          sleep 30
 
       - name: Health check
         run: |
-          curl -f http://localhost:8000/health || true
-          curl -f http://localhost:3000 || true
+          curl -f http://localhost:8000/health
+          curl -f http://localhost:3000
 
       - name: Run integration tests
-        run: docker-compose exec -T backend pytest tests/integration/ -v || true
+        run: docker compose exec -T backend pytest tests/integration -v
 
       - name: Collect logs
         if: failure()
-        run: docker-compose logs > docker-logs.txt
+        run: docker compose logs > docker-logs.txt
 
       - name: Upload logs
         if: failure()
@@ -192,7 +161,7 @@ jobs:
 
       - name: Cleanup
         if: always()
-        run: docker-compose down -v
+        run: docker compose down -v
 
   # ==========================================================================
   # DOCKER BUILD TEST
@@ -202,8 +171,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -211,32 +179,28 @@ jobs:
       - name: Build backend image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: backend
           file: backend/Dockerfile
-          push: false
           tags: aegis-backend:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          load: true
+          push: false
 
       - name: Test image
-        run: |
-          docker run --rm aegis-backend:test python --version
-          docker run --rm aegis-backend:test pip list
+        run: docker run --rm aegis-backend:test python --version
 
   # ==========================================================================
   # SUMMARY
   # ==========================================================================
-  test-summary:
+  summary:
     name: Test Summary
     runs-on: ubuntu-latest
     needs: [lint, security, test, integration, docker-build]
     if: always()
 
     steps:
-      - name: Print summary
-        run: |
-          echo "Lint:        ${{ needs.lint.result }}"
-          echo "Security:    ${{ needs.security.result }}"
-          echo "Unit Tests:  ${{ needs.test.result }}"
+      - run: |
+          echo "Lint: ${{ needs.lint.result }}"
+          echo "Security: ${{ needs.security.result }}"
+          echo "Tests: ${{ needs.test.result }}"
           echo "Integration: ${{ needs.integration.result }}"
-          echo "Docker:      ${{ needs.docker-build.result }}"
+          echo "Docker Build: ${{ needs.docker-build.result }}"
