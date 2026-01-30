@@ -5,32 +5,45 @@ on:
     - cron: '0 0 * * 0'  # Weekly on Sunday
   workflow_dispatch:
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
   scan:
     name: Security Vulnerability Scan
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: Run Trivy vulnerability scanner
+
+      # --- Trivy filesystem scan ---
+      - name: Run Trivy vulnerability scanner (FS)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: '.'
           format: 'sarif'
           output: 'trivy-results.sarif'
-      
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      # --- Upload SARIF (FIXED: CodeQL v3) ---
       - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
-      
+
+      # --- OPTIONAL: Docker image scan (only if image exists) ---
+      - name: Build Docker image
+        run: docker build -t aegis-backend:latest .
+
       - name: Scan Docker image
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'aegis-backend:latest'
           format: 'table'
-          exit-code: '1'
           severity: 'CRITICAL,HIGH'
+          exit-code: '1'
