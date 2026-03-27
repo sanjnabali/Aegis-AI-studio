@@ -6,7 +6,7 @@ Validates and sanitizes user inputs to prevent errors and security issues.
 import re
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, validator
 class MessageValidator:
     """Validates chat messages"""
     @staticmethod
