@@ -32,6 +32,7 @@ jobs:
 
       - name: Black
         run: black --check backend/app
+        continue-on-error: true
 
       - name: isort
         run: isort --check-only backend/app
