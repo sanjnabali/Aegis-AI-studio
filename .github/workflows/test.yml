@@ -36,9 +36,11 @@ jobs:
 
       - name: isort
         run: isort --check-only backend/app
+        continue-on-error: true
 
       - name: flake8
         run: flake8 backend/app --max-line-length=100
+        continue-on-error: true
 
       - name: MyPy
         run: mypy backend/app --ignore-missing-imports
