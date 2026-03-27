@@ -29,6 +29,45 @@ RUN apt-get update && apt-get install -y \
 # Copy Python packages from builder
 COPY --from=builder /root/.local /root/.local
 
+# Make sure scripts in .local are us actually at `backend/requirements.txt`
+- `"/app": not found` - The Dockerfile tries to `COPY app /app/app` but it's actually at `backend/app`
+
+## Solution
+
+Update the Dockerfile to use the correct relative paths since the build context is already set to the `backend/` directory:
+
+```dockerfile
+FROM python:3.11-slim-bookworm AS builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# ============================================================================
+# Final stage
+# ============================================================================
+FROM python:3.11-slim-bookworm
+
+WORKDIR /app
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    libsndfile1 \
+    ffmpeg \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Python packages from builder
+COPY --from=builder /root/.local /root/.local
+
 # Make sure scripts in .local are usable
 ENV PATH=/root/.local/bin:$PATH
 
@@ -38,16 +77,6 @@ RUN mkdir -p /app/models /app/cache /app/logs
 # Copy application code
 COPY app /app/app
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH=/app
-
-# Expose port
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:8000/health || exit 1
-
-# Run the application
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Set
+context: backend
+file: backend/Dockerfile
