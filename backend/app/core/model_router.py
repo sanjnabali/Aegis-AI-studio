@@ -22,21 +22,42 @@ class ModelRouter:
 
         # Code-related keywords
         code_keywords = [
-            "write code", "function", "class", "debug", "implement",
-            "python", "javascript", "java", "c++", "rust", "go",
-            "algorithm", "program", "script", "syntax"
+            "write code",
+            "function",
+            "class",
+            "debug",
+            "implement",
+            "python",
+            "javascript",
+            "java",
+            "c++",
+            "rust",
+            "go",
+            "algorithm",
+            "program",
+            "script",
+            "syntax",
         ]
 
         # Image generation keywords
         image_gen_keywords = [
-            "generate image", "create image", "draw", "picture of",
-            "illustration", "artwork", "visualize", "paint"
+            "generate image",
+            "create image",
+            "draw",
+            "picture of",
+            "illustration",
+            "artwork",
+            "visualize",
+            "paint",
         ]
 
         # Image analysis keywords
         image_analysis_keywords = [
-            "describe image", "what's in", "analyze image",
-            "caption", "identify"
+            "describe image",
+            "what's in",
+            "analyze image",
+            "caption",
+            "identify",
         ]
 
         # Check patterns
@@ -65,7 +86,7 @@ class ModelRouter:
             return {
                 "content": response,
                 "model_used": "deepseek-coder-1.3b",
-                "provider": "huggingface"
+                "provider": "huggingface",
             }
 
         elif intent == "image_generation":
@@ -75,7 +96,7 @@ class ModelRouter:
                 "content": "[Image generated]",
                 "image": image,
                 "model_used": "sdxl-turbo",
-                "provider": "huggingface"
+                "provider": "huggingface",
             }
 
         elif intent == "image_analysis":
@@ -86,13 +107,13 @@ class ModelRouter:
                 return {
                     "content": caption,
                     "model_used": "blip",
-                    "provider": "huggingface"
+                    "provider": "huggingface",
                 }
             else:
                 return {
                     "content": "Please provide an image to analyze",
                     "model_used": "none",
-                    "provider": "none"
+                    "provider": "none",
                 }
 
         else:
@@ -107,7 +128,7 @@ class ModelRouter:
             return {
                 "content": "".join(response_chunks),
                 "model_used": "llama-3.3-70b",
-                "provider": "groq"
+                "provider": "groq",
             }
 
 

@@ -25,7 +25,6 @@ router = APIRouter()
 
 MODELS = {
     # === PRIMARY: GROQ (0 DISK, RECOMMENDED FOR EVERYTHING) ===
-
     "aegis-groq-turbo": {
         "id": "aegis-groq-turbo",
         "name": "Aegis Groq Turbo (Llama 3.3 70B) ⚡ DEFAULT",
@@ -38,9 +37,7 @@ MODELS = {
         "best_for": "Chat, reasoning, general tasks, vision (coming soon)",
         "recommended": True,
     },
-
     # === LOCAL: ONLY ESSENTIALS (5GB total) ===
-
     "aegis-code": {
         "id": "aegis-code",
         "name": "Aegis Code (DeepSeek 1.3B)",
@@ -52,7 +49,6 @@ MODELS = {
         "ram": "~2GB",
         "best_for": "Code generation, debugging (specialized)",
     },
-
     "aegis-vision": {
         "id": "aegis-vision",
         "name": "Aegis Vision (BLIP)",
@@ -64,7 +60,6 @@ MODELS = {
         "ram": "~1GB",
         "best_for": "Image description, visual Q&A, scene understanding",
     },
-
     "aegis-embeddings": {
         "id": "aegis-embeddings",
         "name": "Aegis Embeddings (MiniLM)",
@@ -75,7 +70,6 @@ MODELS = {
         "ram": "~0.5GB",
         "best_for": "Semantic search, RAG, document similarity",
     },
-
     "aegis-whisper": {
         "id": "aegis-whisper",
         "name": "Aegis STT (Whisper Tiny)",
@@ -86,9 +80,7 @@ MODELS = {
         "ram": "~0.5GB",
         "best_for": "Voice transcription",
     },
-
     # === SMART ROUTING ===
-
     "aegis-auto": {
         "id": "aegis-auto",
         "name": "Aegis Auto (Smart) 🤖",
@@ -157,19 +149,25 @@ def _process_messages(request: ChatCompletionRequest) -> list:
             image_urls = []
 
             for part in msg.content:
-                if hasattr(part, 'type'):
-                    if part.type == "text" and hasattr(part, 'text'):
+                if hasattr(part, "type"):
+                    if part.type == "text" and hasattr(part, "text"):
                         text_parts.append(part.text)
-                    elif part.type == "image_url" and hasattr(part, 'image_url'):
+                    elif part.type == "image_url" and hasattr(part, "image_url"):
                         image_urls.append(part.image_url.url)
 
             if image_urls:
                 # Vision request - will use Groq
-                messages.append({
-                    "role": msg.role,
-                    "content": " ".join(text_parts) if text_parts else "What's in this image?",
-                    "images": image_urls,
-                })
+                messages.append(
+                    {
+                        "role": msg.role,
+                        "content": (
+                            " ".join(text_parts)
+                            if text_parts
+                            else "What's in this image?"
+                        ),
+                        "images": image_urls,
+                    }
+                )
             elif text_parts:
                 messages.append({"role": msg.role, "content": " ".join(text_parts)})
 
@@ -194,7 +192,9 @@ async def stream_generator(request: ChatCompletionRequest):
     has_images = any("images" in msg for msg in messages)
     if has_images:
         logger.info("🖼️ Vision request → Using local BLIP")
-        logger.debug(f"Image count: {sum(len(msg.get('images', [])) for msg in messages)}")
+        logger.debug(
+            f"Image count: {sum(len(msg.get('images', [])) for msg in messages)}"
+        )
         backend = "hf_vision"
 
     # Send role
@@ -214,10 +214,10 @@ async def stream_generator(request: ChatCompletionRequest):
             # Stream in chunks
             chunk_size = 50
             for i in range(0, len(result), chunk_size):
-                chunk = result[i:i+chunk_size]
+                chunk = result[i : i + chunk_size]
                 full_response.append(chunk)
 
-                chunk_escaped = chunk.replace('"', '\\"').replace('\n', '\\n')
+                chunk_escaped = chunk.replace('"', '\\"').replace("\n", "\\n")
                 msg = (
                     f'data: {{"id":"{chat_id}","model":"{request.model}",'
                     f'"choices":[{{"delta":{{"content":"{chunk_escaped}"}},'
@@ -239,14 +239,15 @@ async def stream_generator(request: ChatCompletionRequest):
                     image_data = last_msg["images"][0]
 
                     # Handle base64 data URLs (from Open WebUI)
-                    if image_data.startswith('data:image'):
+                    if image_data.startswith("data:image"):
                         # Extract base64 data
-                        base64_data = image_data.split(',', 1)[1]
+                        base64_data = image_data.split(",", 1)[1]
                         image_bytes = base64.b64decode(base64_data)
                         image = Image.open(BytesIO(image_bytes))
-                    elif image_data.startswith('http'):
+                    elif image_data.startswith("http"):
                         # Handle regular URLs
                         import httpx
+
                         async with httpx.AsyncClient(timeout=30.0) as client:
                             response = await client.get(image_data)
                             image = Image.open(BytesIO(response.content))
@@ -260,7 +261,7 @@ async def stream_generator(request: ChatCompletionRequest):
 
                     full_response.append(caption)
 
-                    chunk_escaped = caption.replace('"', '\\"').replace('\n', '\\n')
+                    chunk_escaped = caption.replace('"', '\\"').replace("\n", "\\n")
                     msg = (
                         f'data: {{"id":"{chat_id}","model":"{request.model}",'
                         f'"choices":[{{"delta":{{"content":"{chunk_escaped}"}},'
@@ -321,7 +322,7 @@ async def stream_generator(request: ChatCompletionRequest):
             async for chunk_text in stream:
                 full_response.append(chunk_text)
 
-                chunk_escaped = chunk_text.replace('"', '\\"').replace('\n', '\\n')
+                chunk_escaped = chunk_text.replace('"', '\\"').replace("\n", "\\n")
                 msg = (
                     f'data: {{"id":"{chat_id}","model":"{request.model}",'
                     f'"choices":[{{"delta":{{"content":"{chunk_escaped}"}},'
@@ -372,6 +373,7 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
 # AUDIO TRANSCRIPTION
 # ============================================================================
 
+
 @router.post("/v1/audio/transcriptions")
 async def create_transcription(
     file: UploadFile = File(...),
@@ -388,6 +390,7 @@ async def create_transcription(
         audio_data = await file.read()
 
         import librosa
+
         audio_array, _ = librosa.load(BytesIO(audio_data), sr=16000)
 
         transcription = await models.hf_speech_to_text(audio_array)
@@ -405,6 +408,7 @@ async def create_transcription(
 # ============================================================================
 # EMBEDDINGS
 # ============================================================================
+
 
 @router.post("/v1/embeddings")
 async def create_embeddings(request: dict):
@@ -444,6 +448,7 @@ async def create_embeddings(request: dict):
 # METRICS & HEALTH
 # ============================================================================
 
+
 @router.get("/v1/metrics")
 async def get_metrics():
     """Performance metrics"""
@@ -457,7 +462,7 @@ async def get_metrics():
             "local_models": ["DeepSeek Coder", "BLIP Vision", "MiniLM", "Whisper Tiny"],
             "primary_engine": "Groq (0 disk)",
             "removed_features": REMOVED_FEATURES_INFO,
-        }
+        },
     }
 
 
@@ -494,8 +499,7 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         return JSONResponse(
-            status_code=503,
-            content={"status": "unhealthy", "error": str(e)}
+            status_code=503, content={"status": "unhealthy", "error": str(e)}
         )
 
 
@@ -532,4 +536,4 @@ async def get_features():
 
 _startup_time = time.time()
 
-__all__ = ['router', 'MODELS']
+__all__ = ["router", "MODELS"]

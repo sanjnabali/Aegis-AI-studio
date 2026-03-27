@@ -28,10 +28,10 @@ class MessageValidator:
     def sanitize_content(content: str) -> str:
         """Sanitize content to prevent injection attacks"""
         # Remove null bytes
-        content = content.replace('\x00', '')
+        content = content.replace("\x00", "")
 
         # Normalize whitespace
-        content = re.sub(r'\s+', ' ', content)
+        content = re.sub(r"\s+", " ", content)
 
         return content.strip()
 
@@ -160,7 +160,10 @@ class CodeValidator:
         # Check for dangerous imports
         for dangerous in CodeValidator.DANGEROUS_IMPORTS:
             if dangerous in code_lower:
-                return False, f"Code contains potentially dangerous operation: {dangerous}"
+                return (
+                    False,
+                    f"Code contains potentially dangerous operation: {dangerous}",
+                )
 
         # Check for infinite loops
         if "while True:" in code or "while 1:" in code:
@@ -180,10 +183,10 @@ class QueryValidator:
     def sanitize_query(query: str) -> str:
         """Sanitize search query"""
         # Remove excess whitespace
-        query = re.sub(r'\s+', ' ', query).strip()
+        query = re.sub(r"\s+", " ", query).strip()
 
         # Remove special characters that could break search
-        query = re.sub(r'[^\w\s\-\'".,?!]', '', query)
+        query = re.sub(r'[^\w\s\-\'".,?!]', "", query)
 
         return query
 
@@ -203,7 +206,7 @@ class QueryValidator:
             return False, "Query too long (max: 500 characters)"
 
         # Check for suspicious patterns
-        if re.search(r'<script|javascript:|data:', query, re.IGNORECASE):
+        if re.search(r"<script|javascript:|data:", query, re.IGNORECASE):
             return False, "Query contains suspicious content"
 
         return True, None
@@ -212,13 +215,14 @@ class QueryValidator:
 # Pydantic models for request validation
 class ChatRequest(BaseModel):
     """Validated chat request"""
+
     model: str = Field(..., min_length=1, max_length=100)
     messages: List[Dict[str, Any]] = Field(..., min_items=1, max_items=100)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=8000, ge=1, le=32000)
     stream: bool = Field(default=True)
 
-    @validator('messages')
+    @validator("messages")
     def validate_messages_list(cls, v):
         is_valid, error = MessageValidator.validate_messages(v)
         if not is_valid:
@@ -228,10 +232,11 @@ class ChatRequest(BaseModel):
 
 class WebSearchRequest(BaseModel):
     """Validated web search request"""
+
     query: str = Field(..., min_length=1, max_length=500)
     max_results: int = Field(default=5, ge=1, le=20)
 
-    @validator('query')
+    @validator("query")
     def validate_query_content(cls, v):
         is_valid, error = QueryValidator.is_valid_query(v)
         if not is_valid:
@@ -241,9 +246,10 @@ class WebSearchRequest(BaseModel):
 
 class WebScrapeRequest(BaseModel):
     """Validated web scrape request"""
+
     url: str = Field(..., min_length=1, max_length=2000)
 
-    @validator('url')
+    @validator("url")
     def validate_url_safety(cls, v):
         v = URLValidator.sanitize_url(v)
         if not URLValidator.is_valid_url(v):
@@ -253,10 +259,11 @@ class WebScrapeRequest(BaseModel):
 
 class CodeExecutionRequest(BaseModel):
     """Validated code execution request"""
+
     code: str = Field(..., min_length=1, max_length=10000)
     timeout: int = Field(default=5, ge=1, le=30)
 
-    @validator('code')
+    @validator("code")
     def validate_code_safety(cls, v):
         is_safe, warning = CodeValidator.is_safe_code(v)
         if not is_safe:

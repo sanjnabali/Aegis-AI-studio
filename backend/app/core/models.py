@@ -43,17 +43,18 @@ def get_groq_client() -> AsyncGroq:
 # MINIMAL LOCAL MODELS - ONLY ESSENTIALS
 # ============================================================================
 
+
 class UltraLightModels:
     """Minimal local models - total ~6GB disk"""
 
     def __init__(self):
         # Essential models
-        self.code_model = None          # ~1.3GB (essential for code)
+        self.code_model = None  # ~1.3GB (essential for code)
         self.code_tokenizer = None
-        self.vision_model = None        # ~800MB (for image analysis)
+        self.vision_model = None  # ~800MB (for image analysis)
         self.vision_processor = None
-        self.embeddings_model = None    # ~80MB (essential for RAG)
-        self.stt_model = None           # ~150MB (essential for voice)
+        self.embeddings_model = None  # ~80MB (essential for RAG)
+        self.stt_model = None  # ~150MB (essential for voice)
 
         # Removed to save space:
         # - Reasoning model (use Groq instead)
@@ -94,7 +95,9 @@ class UltraLightModels:
 
                 return tokenizer, model
 
-            self.code_tokenizer, self.code_model = await loop.run_in_executor(None, _load)
+            self.code_tokenizer, self.code_model = await loop.run_in_executor(
+                None, _load
+            )
 
             logger.success("✓ DeepSeek Coder loaded (1.3GB)")
 
@@ -112,8 +115,7 @@ class UltraLightModels:
             # Import with proper error handling
             try:
                 import torch
-                from transformers import (BlipForConditionalGeneration,
-                                          BlipProcessor)
+                from transformers import BlipForConditionalGeneration, BlipProcessor
             except Exception as e:
                 logger.error(f"Failed to import vision libraries: {e}")
                 raise
@@ -134,12 +136,14 @@ class UltraLightModels:
                 )
 
                 # Move to CPU explicitly
-                model = model.to('cpu')
+                model = model.to("cpu")
                 model.eval()  # Set to evaluation mode
 
                 return processor, model
 
-            self.vision_processor, self.vision_model = await loop.run_in_executor(None, _load)
+            self.vision_processor, self.vision_model = await loop.run_in_executor(
+                None, _load
+            )
 
             logger.success("✓ BLIP vision loaded (800MB)")
 
@@ -215,6 +219,7 @@ def _get_hf_models():
 # STREAMING FUNCTIONS
 # ============================================================================
 
+
 async def groq_stream(
     messages: list,
     model: str = "llama-3.3-70b-versatile",
@@ -283,14 +288,16 @@ async def hf_code_generate(prompt: str) -> str:
             )
 
         return hf.code_tokenizer.decode(
-            outputs[0][inputs.input_ids.shape[1]:],
+            outputs[0][inputs.input_ids.shape[1] :],
             skip_special_tokens=True,
         )
 
     return await loop.run_in_executor(None, _generate)
 
 
-async def hf_vision_analyze(image, prompt: str = "Describe this image in detail") -> str:
+async def hf_vision_analyze(
+    image, prompt: str = "Describe this image in detail"
+) -> str:
     """Analyze image with BLIP (local for privacy)"""
 
     hf = _get_hf_models()
@@ -308,8 +315,8 @@ async def hf_vision_analyze(image, prompt: str = "Describe this image in detail"
 
         try:
             # Ensure image is in RGB mode
-            if image.mode != 'RGB':
-                image_rgb = image.convert('RGB')
+            if image.mode != "RGB":
+                image_rgb = image.convert("RGB")
             else:
                 image_rgb = image
 
@@ -324,8 +331,7 @@ async def hf_vision_analyze(image, prompt: str = "Describe this image in detail"
             with torch.no_grad():  # Disable gradient computation
                 # Process single image
                 pixel_values = hf.vision_processor(
-                    images=image_rgb,
-                    return_tensors="pt"
+                    images=image_rgb, return_tensors="pt"
                 ).pixel_values
 
                 # Move to same device as model
@@ -342,8 +348,7 @@ async def hf_vision_analyze(image, prompt: str = "Describe this image in detail"
 
                 # Decode output
                 caption = hf.vision_processor.decode(
-                    generated_ids[0],
-                    skip_special_tokens=True
+                    generated_ids[0], skip_special_tokens=True
                 )
 
             # Clean up caption
@@ -356,7 +361,7 @@ async def hf_vision_analyze(image, prompt: str = "Describe this image in detail"
                 "what's in this image?",
                 "what is this?",
                 "analyze the image",
-                "what do you see?"
+                "what do you see?",
             ]:
                 caption_text = (
                     f"Image shows: {caption}\n\nRegarding your question "
@@ -369,6 +374,7 @@ async def hf_vision_analyze(image, prompt: str = "Describe this image in detail"
         except Exception as e:
             logger.error(f"Error in vision analysis: {e}")
             import traceback
+
             traceback.print_exc()
             raise
 
@@ -433,13 +439,15 @@ async def unified_stream(
         # Stream the result
         chunk_size = 50
         for i in range(0, len(result), chunk_size):
-            yield result[i:i+chunk_size]
+            yield result[i : i + chunk_size]
             await asyncio.sleep(0.01)
         return
 
     # Everything else → Groq (chat, reasoning, vision, etc.)
     logger.info("🎯 Routing: Groq Llama 3.3 70B (fast, 0 disk)")
-    async for chunk in groq_stream(messages, max_tokens=max_tokens, temperature=temperature):
+    async for chunk in groq_stream(
+        messages, max_tokens=max_tokens, temperature=temperature
+    ):
         yield chunk
 
 
@@ -467,12 +475,12 @@ def get_metrics() -> dict:
 
 
 __all__ = [
-    'groq_stream',
-    'hf_code_generate',
-    'hf_vision_analyze',
-    'hf_speech_to_text',
-    'hf_get_embeddings',
-    'unified_stream',
-    'get_groq_client',
-    'get_metrics',
+    "groq_stream",
+    "hf_code_generate",
+    "hf_vision_analyze",
+    "hf_speech_to_text",
+    "hf_get_embeddings",
+    "unified_stream",
+    "get_groq_client",
+    "get_metrics",
 ]

@@ -67,12 +67,14 @@ class DocumentStore:
                 # Calculate rough relevance score
                 score = content_lower.count(query_lower) / len(content_lower.split())
 
-                results.append({
-                    "doc_id": doc_id,
-                    "content": doc["content"],
-                    "metadata": doc["metadata"],
-                    "score": score,
-                })
+                results.append(
+                    {
+                        "doc_id": doc_id,
+                        "content": doc["content"],
+                        "metadata": doc["metadata"],
+                        "score": score,
+                    }
+                )
 
         # Sort by score
         results.sort(key=lambda x: x["score"], reverse=True)
@@ -172,6 +174,7 @@ class RAGTool:
         """Add new knowledge to the store"""
 
         import uuid
+
         doc_id = str(uuid.uuid4())
 
         self.document_store.add_document(doc_id, content, metadata)

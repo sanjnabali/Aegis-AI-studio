@@ -80,11 +80,13 @@ class CodeRunner:
                 logger.warning(f"Code execution failed: {error}")
 
             # Store in history
-            self.execution_history.append({
-                "code_length": len(code),
-                "success": result["success"],
-                "execution_time": exec_time,
-            })
+            self.execution_history.append(
+                {
+                    "code_length": len(code),
+                    "success": result["success"],
+                    "execution_time": exec_time,
+                }
+            )
 
             return result
 
@@ -102,6 +104,7 @@ class CodeRunner:
         """Synchronous code execution with output capture"""
 
         import time
+
         start_time = time.time()
 
         # Capture stdout/stderr
@@ -117,7 +120,7 @@ class CodeRunner:
         try:
             # Execute code
             exec_globals = {
-                '__builtins__': __builtins__,
+                "__builtins__": __builtins__,
             }
             exec(code, exec_globals)
 
@@ -127,7 +130,7 @@ class CodeRunner:
 
             # Truncate if too long
             if len(output) > self.max_output_length:
-                output = output[:self.max_output_length] + "\n[Output truncated...]"
+                output = output[: self.max_output_length] + "\n[Output truncated...]"
 
             execution_time = time.time() - start_time
 

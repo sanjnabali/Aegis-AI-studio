@@ -10,6 +10,7 @@ from typing import Any, Callable, Dict, List
 
 class ToolCategory(str, Enum):
     """Tool categories"""
+
     SEARCH = "search"
     SCRAPING = "scraping"
     CODE = "code"

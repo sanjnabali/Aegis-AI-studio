@@ -14,6 +14,7 @@ from loguru import logger
 
 try:
     import httpx
+
     HTTPX_AVAILABLE = True
 except ImportError:
     HTTPX_AVAILABLE = False
@@ -122,12 +123,7 @@ class TextToSpeech:
             logger.error(f"TTS error: {e}")
             return None
 
-    async def synthesize_to_file(
-        self,
-        text: str,
-        output_path: str,
-        **kwargs
-    ) -> bool:
+    async def synthesize_to_file(self, text: str, output_path: str, **kwargs) -> bool:
         """
         Synthesize speech and save to file.
 
@@ -164,9 +160,19 @@ class SpeechToText:
 
     def __init__(self):
         self.supported_languages = [
-            "en-US", "en-GB", "es-ES", "fr-FR", "de-DE",
-            "it-IT", "pt-BR", "ru-RU", "ja-JP", "ko-KR",
-            "zh-CN", "hi-IN", "ar-SA",
+            "en-US",
+            "en-GB",
+            "es-ES",
+            "fr-FR",
+            "de-DE",
+            "it-IT",
+            "pt-BR",
+            "ru-RU",
+            "ja-JP",
+            "ko-KR",
+            "zh-CN",
+            "hi-IN",
+            "ar-SA",
         ]
 
         self.transcription_stats = {
@@ -207,6 +213,7 @@ class SpeechToText:
 
         # Detect if it's a voice query
         from app.utils.formatters import VoiceOptimizer
+
         is_voice = VoiceOptimizer.detect_voice_query(text)
 
         return {
@@ -254,13 +261,13 @@ class AudioProcessor:
 
         # Check for audio magic numbers
         audio_signatures = [
-            b'\xFF\xFB',  # MP3
-            b'\xFF\xF3',  # MP3
-            b'\xFF\xF2',  # MP3
-            b'ID3',       # MP3 with ID3
-            b'OggS',      # OGG
-            b'RIFF',      # WAV
-            b'fLaC',      # FLAC
+            b"\xff\xfb",  # MP3
+            b"\xff\xf3",  # MP3
+            b"\xff\xf2",  # MP3
+            b"ID3",  # MP3 with ID3
+            b"OggS",  # OGG
+            b"RIFF",  # WAV
+            b"fLaC",  # FLAC
         ]
 
         is_valid = any(data.startswith(sig) for sig in audio_signatures)
@@ -273,7 +280,7 @@ class AudioProcessor:
     @staticmethod
     def encode_audio_base64(data: bytes) -> str:
         """Encode audio data to base64"""
-        return base64.b64encode(data).decode('utf-8')
+        return base64.b64encode(data).decode("utf-8")
 
     @staticmethod
     def decode_audio_base64(encoded: str) -> bytes:

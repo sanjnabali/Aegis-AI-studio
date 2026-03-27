@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
-
 # ============================================================================
 # ENUMS
 # ============================================================================
@@ -20,6 +19,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class MessageRole(str, Enum):
     """Valid message roles"""
+
     SYSTEM = "system"
     USER = "user"
     ASSISTANT = "assistant"
@@ -28,12 +28,14 @@ class MessageRole(str, Enum):
 
 class ContentType(str, Enum):
     """Content types for multimodal messages"""
+
     TEXT = "text"
     IMAGE_URL = "image_url"
 
 
 class TaskType(str, Enum):
     """Agent task types"""
+
     CHAT = "chat"
     CODE = "code"
     SEARCH = "search"
@@ -46,35 +48,39 @@ class TaskType(str, Enum):
 # CHAT COMPLETION MODELS (Core)
 # ============================================================================
 
+
 class ImageURL(BaseModel):
     """Image URL container"""
+
     url: str = Field(..., description="URL of the image")
     detail: Literal["auto", "low", "high"] = "auto"
 
 
 class ContentPart(BaseModel):
     """Content part for multimodal messages"""
+
     type: ContentType
     text: Optional[str] = None
     image_url: Optional[ImageURL] = None
 
-    @field_validator('text')
+    @field_validator("text")
     @classmethod
     def validate_text(cls, v, info):
-        if info.data.get('type') == ContentType.TEXT and not v:
+        if info.data.get("type") == ContentType.TEXT and not v:
             raise ValueError("Text required for text type")
         return v
 
-    @field_validator('image_url')
+    @field_validator("image_url")
     @classmethod
     def validate_image(cls, v, info):
-        if info.data.get('type') == ContentType.IMAGE_URL and not v:
+        if info.data.get("type") == ContentType.IMAGE_URL and not v:
             raise ValueError("Image URL required for image_url type")
         return v
 
 
 class ChatMessage(BaseModel):
     """Single chat message"""
+
     role: MessageRole
     content: Union[str, List[ContentPart]]
     name: Optional[str] = None
@@ -85,6 +91,7 @@ class ChatMessage(BaseModel):
 
 class ChatCompletionRequest(BaseModel):
     """Chat completion request (OpenAI-compatible)"""
+
     model: str = Field(..., description="Model to use")
     messages: List[ChatMessage] = Field(..., min_length=1, max_length=100)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
@@ -107,6 +114,7 @@ class ChatCompletionRequest(BaseModel):
 
 class StreamDelta(BaseModel):
     """Streaming response delta"""
+
     content: Optional[str] = None
     role: Optional[str] = None
     tool_calls: Optional[List[Dict[str, Any]]] = None
@@ -114,6 +122,7 @@ class StreamDelta(BaseModel):
 
 class StreamChoice(BaseModel):
     """Streaming choice"""
+
     delta: StreamDelta
     index: int = 0
     finish_reason: Optional[str] = None
@@ -122,6 +131,7 @@ class StreamChoice(BaseModel):
 
 class ChatCompletionStreamResponse(BaseModel):
     """Streaming response chunk"""
+
     id: str
     object: str = "chat.completion.chunk"
     created: int = Field(default_factory=lambda: int(time.time()))
@@ -134,8 +144,10 @@ class ChatCompletionStreamResponse(BaseModel):
 # MODEL LIST MODELS
 # ============================================================================
 
+
 class ModelPermission(BaseModel):
     """Model permissions"""
+
     id: str = "modelperm-aegis"
     object: str = "model_permission"
     created: int = Field(default_factory=lambda: int(time.time()))
@@ -151,6 +163,7 @@ class ModelPermission(BaseModel):
 
 class ModelData(BaseModel):
     """Model information"""
+
     id: str
     object: str = "model"
     created: int = Field(default_factory=lambda: int(time.time()))
@@ -166,6 +179,7 @@ class ModelData(BaseModel):
 
 class ModelList(BaseModel):
     """List of available models"""
+
     object: str = "list"
     data: List[ModelData]
 
@@ -174,8 +188,10 @@ class ModelList(BaseModel):
 # WEB SEARCH MODELS
 # ============================================================================
 
+
 class WebSearchRequest(BaseModel):
     """Web search request"""
+
     query: str = Field(..., min_length=1, max_length=500)
     max_results: int = Field(default=5, ge=1, le=20)
     search_type: Literal["web", "news", "instant"] = "web"
@@ -185,6 +201,7 @@ class WebSearchRequest(BaseModel):
 
 class WebSearchResult(BaseModel):
     """Single search result"""
+
     position: int
     title: str
     snippet: str
@@ -196,6 +213,7 @@ class WebSearchResult(BaseModel):
 
 class WebSearchResponse(BaseModel):
     """Search results response"""
+
     query: str
     results: List[WebSearchResult]
     total_results: int
@@ -207,8 +225,10 @@ class WebSearchResponse(BaseModel):
 # WEB SCRAPING MODELS
 # ============================================================================
 
+
 class WebScrapeRequest(BaseModel):
     """Web scraping request"""
+
     url: str = Field(..., description="URL to scrape")
     max_length: int = Field(default=10000, ge=100, le=50000)
     extract_links: bool = Field(default=False)
@@ -218,6 +238,7 @@ class WebScrapeRequest(BaseModel):
 
 class WebScrapeResponse(BaseModel):
     """Scraping result"""
+
     success: bool
     url: str
     title: Optional[str] = None
@@ -235,8 +256,10 @@ class WebScrapeResponse(BaseModel):
 # RESEARCH MODELS
 # ============================================================================
 
+
 class ResearchRequest(BaseModel):
     """Research request"""
+
     query: str = Field(..., min_length=1, max_length=500)
     num_sources: int = Field(default=3, ge=1, le=10)
     include_news: bool = Field(default=False)
@@ -246,6 +269,7 @@ class ResearchRequest(BaseModel):
 
 class ResearchSource(BaseModel):
     """Single research source"""
+
     url: str
     title: str
     content: str
@@ -255,6 +279,7 @@ class ResearchSource(BaseModel):
 
 class ResearchResponse(BaseModel):
     """Research results"""
+
     query: str
     status: Literal["completed", "partial", "failed"]
     sources: List[ResearchSource]
@@ -270,8 +295,10 @@ class ResearchResponse(BaseModel):
 # CODE EXECUTION MODELS
 # ============================================================================
 
+
 class CodeExecutionRequest(BaseModel):
     """Code execution request"""
+
     code: str = Field(..., min_length=1, max_length=10000)
     language: Literal["python", "javascript", "bash"] = "python"
     timeout: int = Field(default=5, ge=1, le=30)
@@ -282,6 +309,7 @@ class CodeExecutionRequest(BaseModel):
 
 class CodeExecutionResponse(BaseModel):
     """Code execution result"""
+
     success: bool
     output: str
     error: Optional[str] = None
@@ -297,8 +325,10 @@ class CodeExecutionResponse(BaseModel):
 # IMAGE GENERATION MODELS (HuggingFace)
 # ============================================================================
 
+
 class ImageGenerationRequest(BaseModel):
     """Image generation request (SDXL Turbo)"""
+
     prompt: str = Field(..., min_length=1, max_length=1000)
     negative_prompt: Optional[str] = None
     num_steps: int = Field(default=1, ge=1, le=50)
@@ -310,6 +340,7 @@ class ImageGenerationRequest(BaseModel):
 
 class ImageGenerationResponse(BaseModel):
     """Image generation result"""
+
     success: bool
     image_url: Optional[str] = None
     image_base64: Optional[str] = None
@@ -327,24 +358,27 @@ class ImageGenerationResponse(BaseModel):
 # IMAGE ANALYSIS MODELS (HuggingFace BLIP)
 # ============================================================================
 
+
 class ImageAnalysisRequest(BaseModel):
     """Image analysis request"""
+
     image_url: Optional[str] = None
     image_base64: Optional[str] = None
     analysis_type: Literal["caption", "detailed", "objects"] = "caption"
     max_length: int = Field(default=100, ge=20, le=200)
 
-    @field_validator('image_url', 'image_base64')
+    @field_validator("image_url", "image_base64")
     @classmethod
     def validate_image_source(cls, v, info):
         values = info.data
-        if not values.get('image_url') and not values.get('image_base64'):
+        if not values.get("image_url") and not values.get("image_base64"):
             raise ValueError("Either image_url or image_base64 required")
         return v
 
 
 class ImageAnalysisResponse(BaseModel):
     """Image analysis result"""
+
     success: bool
     caption: Optional[str] = None
     detailed_description: Optional[str] = None
@@ -359,8 +393,10 @@ class ImageAnalysisResponse(BaseModel):
 # AUDIO MODELS (TTS/STT)
 # ============================================================================
 
+
 class TextToSpeechRequest(BaseModel):
     """Text-to-speech request"""
+
     text: str = Field(..., min_length=1, max_length=4000)
     voice: Literal["alloy", "echo", "fable", "onyx", "nova", "shimmer"] = "nova"
     model: Literal["tts-1", "tts-1-hd"] = "tts-1"
@@ -370,6 +406,7 @@ class TextToSpeechRequest(BaseModel):
 
 class TextToSpeechResponse(BaseModel):
     """Text-to-speech result"""
+
     success: bool
     audio_url: Optional[str] = None
     audio_base64: Optional[str] = None
@@ -381,6 +418,7 @@ class TextToSpeechResponse(BaseModel):
 
 class SpeechToTextRequest(BaseModel):
     """Speech-to-text request"""
+
     audio_url: Optional[str] = None
     audio_base64: Optional[str] = None
     language: str = Field(default="en-US")
@@ -389,6 +427,7 @@ class SpeechToTextRequest(BaseModel):
 
 class SpeechToTextResponse(BaseModel):
     """Speech-to-text result"""
+
     success: bool
     text: str
     language: str
@@ -402,14 +441,17 @@ class SpeechToTextResponse(BaseModel):
 # VOICE OPTIMIZATION MODELS
 # ============================================================================
 
+
 class VoiceDetectionRequest(BaseModel):
     """Voice query detection"""
+
     text: str
     confidence_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
 
 
 class VoiceOptimizationResponse(BaseModel):
     """Voice-optimized response"""
+
     original_text: str
     optimized_text: str
     is_voice_query: bool
@@ -422,8 +464,10 @@ class VoiceOptimizationResponse(BaseModel):
 # AGENT MODELS
 # ============================================================================
 
+
 class AgentTask(BaseModel):
     """Agent task definition"""
+
     type: TaskType
     query: str
     parameters: Dict[str, Any] = Field(default_factory=dict)
@@ -433,6 +477,7 @@ class AgentTask(BaseModel):
 
 class AgentStep(BaseModel):
     """Single agent execution step"""
+
     step_number: int
     action: str
     observation: str
@@ -442,6 +487,7 @@ class AgentStep(BaseModel):
 
 class AgentResponse(BaseModel):
     """Agent execution result"""
+
     task_type: str
     success: bool
     result: Any
@@ -454,6 +500,7 @@ class AgentResponse(BaseModel):
 
 class AgentStats(BaseModel):
     """Agent routing statistics"""
+
     total_requests: int
     tasks_by_type: Dict[str, int]
     average_execution_time: float
@@ -465,8 +512,10 @@ class AgentStats(BaseModel):
 # SYSTEM MODELS
 # ============================================================================
 
+
 class HealthStatus(BaseModel):
     """Health check response"""
+
     status: Literal["healthy", "degraded", "unhealthy"]
     timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     uptime_seconds: int
@@ -476,6 +525,7 @@ class HealthStatus(BaseModel):
 
 class SystemStats(BaseModel):
     """System statistics"""
+
     uptime_seconds: int
     total_requests: int
     backends: Dict[str, Any]
@@ -487,6 +537,7 @@ class SystemStats(BaseModel):
 
 class PerformanceMetrics(BaseModel):
     """Performance metrics"""
+
     groq: Dict[str, Any]
     huggingface: Dict[str, Any]
     cache: Dict[str, Any]
@@ -496,6 +547,7 @@ class PerformanceMetrics(BaseModel):
 
 class ErrorResponse(BaseModel):
     """Error response"""
+
     error: Dict[str, str]
     request_id: Optional[str] = None
     timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
@@ -505,8 +557,10 @@ class ErrorResponse(BaseModel):
 # CACHE MODELS
 # ============================================================================
 
+
 class CacheStats(BaseModel):
     """Cache statistics"""
+
     enabled: bool
     hits: int
     misses: int
@@ -519,6 +573,7 @@ class CacheStats(BaseModel):
 
 class CacheInvalidationRequest(BaseModel):
     """Cache invalidation request"""
+
     pattern: str = Field(..., description="Key pattern to invalidate")
     confirm: bool = Field(default=False)
 
@@ -527,8 +582,10 @@ class CacheInvalidationRequest(BaseModel):
 # RATE LIMIT MODELS
 # ============================================================================
 
+
 class RateLimitInfo(BaseModel):
     """Rate limit information"""
+
     limit: int
     remaining: int
     reset_at: str
@@ -537,6 +594,7 @@ class RateLimitInfo(BaseModel):
 
 class RateLimitStatus(BaseModel):
     """Current rate limit status"""
+
     ip: RateLimitInfo
     groq: Optional[RateLimitInfo] = None
 
@@ -545,8 +603,10 @@ class RateLimitStatus(BaseModel):
 # EMBEDDINGS MODELS (For RAG/Semantic Search)
 # ============================================================================
 
+
 class EmbeddingsRequest(BaseModel):
     """Embeddings generation request"""
+
     input: Union[str, List[str]] = Field(..., description="Text(s) to embed")
     model: str = Field(default="all-MiniLM-L6-v2")
     encoding_format: Literal["float", "base64"] = "float"
@@ -554,6 +614,7 @@ class EmbeddingsRequest(BaseModel):
 
 class EmbeddingData(BaseModel):
     """Single embedding"""
+
     object: str = "embedding"
     embedding: List[float]
     index: int
@@ -561,6 +622,7 @@ class EmbeddingData(BaseModel):
 
 class EmbeddingsResponse(BaseModel):
     """Embeddings response"""
+
     object: str = "list"
     data: List[EmbeddingData]
     model: str
@@ -571,8 +633,10 @@ class EmbeddingsResponse(BaseModel):
 # DOCUMENT PROCESSING MODELS (For RAG)
 # ============================================================================
 
+
 class DocumentUploadRequest(BaseModel):
     """Document upload for RAG"""
+
     content: str = Field(..., min_length=1, max_length=50000)
     metadata: Dict[str, Any] = Field(default_factory=dict)
     chunk_size: int = Field(default=1000, ge=100, le=5000)
@@ -581,6 +645,7 @@ class DocumentUploadRequest(BaseModel):
 
 class DocumentUploadResponse(BaseModel):
     """Document upload result"""
+
     success: bool
     document_id: str
     chunks_created: int
@@ -590,6 +655,7 @@ class DocumentUploadResponse(BaseModel):
 
 class DocumentSearchRequest(BaseModel):
     """Search documents"""
+
     query: str = Field(..., min_length=1, max_length=500)
     top_k: int = Field(default=5, ge=1, le=20)
     min_similarity: float = Field(default=0.5, ge=0.0, le=1.0)
@@ -597,6 +663,7 @@ class DocumentSearchRequest(BaseModel):
 
 class DocumentSearchResult(BaseModel):
     """Single search result"""
+
     document_id: str
     chunk_id: str
     content: str
@@ -606,6 +673,7 @@ class DocumentSearchResult(BaseModel):
 
 class DocumentSearchResponse(BaseModel):
     """Document search results"""
+
     query: str
     results: List[DocumentSearchResult]
     total_results: int
@@ -621,7 +689,6 @@ __all__ = [
     "MessageRole",
     "ContentType",
     "TaskType",
-
     # Core Chat Models
     "ImageURL",
     "ContentPart",
@@ -630,12 +697,10 @@ __all__ = [
     "StreamDelta",
     "StreamChoice",
     "ChatCompletionStreamResponse",
-
     # Model Management
     "ModelPermission",
     "ModelData",
     "ModelList",
-
     # Web Features
     "WebSearchRequest",
     "WebSearchResult",
@@ -645,47 +710,38 @@ __all__ = [
     "ResearchRequest",
     "ResearchSource",
     "ResearchResponse",
-
     # Code Execution
     "CodeExecutionRequest",
     "CodeExecutionResponse",
-
     # Image Features
     "ImageGenerationRequest",
     "ImageGenerationResponse",
     "ImageAnalysisRequest",
     "ImageAnalysisResponse",
-
     # Audio Features
     "TextToSpeechRequest",
     "TextToSpeechResponse",
     "SpeechToTextRequest",
     "SpeechToTextResponse",
-
     # Voice Optimization
     "VoiceDetectionRequest",
     "VoiceOptimizationResponse",
-
     # Agent System
     "AgentTask",
     "AgentStep",
     "AgentResponse",
     "AgentStats",
-
     # System
     "HealthStatus",
     "SystemStats",
     "PerformanceMetrics",
     "ErrorResponse",
-
     # Cache
     "CacheStats",
     "CacheInvalidationRequest",
-
     # Rate Limiting
     "RateLimitInfo",
     "RateLimitStatus",
-
     # Embeddings & RAG
     "EmbeddingsRequest",
     "EmbeddingData",

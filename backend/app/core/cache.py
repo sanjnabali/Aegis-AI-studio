@@ -1,6 +1,7 @@
 ﻿"""
 Redis Caching Layer - Updated for Python 3.11
 """
+
 import hashlib
 import json
 from typing import Optional
@@ -9,6 +10,7 @@ from loguru import logger
 
 try:
     import redis.asyncio as aioredis
+
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
@@ -27,11 +29,7 @@ async def init_cache():
         return
 
     try:
-        redis_client = aioredis.Redis(
-            host="redis",
-            port=6379,
-            decode_responses=True
-        )
+        redis_client = aioredis.Redis(host="redis", port=6379, decode_responses=True)
         await redis_client.ping()
         logger.success("✓ Redis cache connected")
     except Exception as e:

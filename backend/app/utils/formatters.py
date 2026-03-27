@@ -24,44 +24,43 @@ class ResponseFormatter:
         """
 
         # Remove markdown headers
-        text = re.sub(r'^#+\s+', '', text, flags=re.MULTILINE)
+        text = re.sub(r"^#+\s+", "", text, flags=re.MULTILINE)
 
         # Remove markdown bold/italic
-        text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
-        text = re.sub(r'\*(.+?)\*', r'\1', text)
-        text = re.sub(r'__(.+?)__', r'\1', text)
-        text = re.sub(r'_(.+?)_', r'\1', text)
+        text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+        text = re.sub(r"\*(.+?)\*", r"\1", text)
+        text = re.sub(r"__(.+?)__", r"\1", text)
+        text = re.sub(r"_(.+?)_", r"\1", text)
 
         # Remove code blocks
-        text = re.sub(r'```[\s\S]*?```', '[code block omitted]', text)
-        text = re.sub(r'`([^`]+)`', r'\1', text)
+        text = re.sub(r"```[\s\S]*?```", "[code block omitted]", text)
+        text = re.sub(r"`([^`]+)`", r"\1", text)
 
         # Remove links but keep text
-        text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+        text = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", text)
 
         # Remove bullet points
-        text = re.sub(r'^\s*[-*]\s+', '', text, flags=re.MULTILINE)
-        text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
+        text = re.sub(r"^\s*[-*]\s+", "", text, flags=re.MULTILINE)
+        text = re.sub(r"^\s*\d+\.\s+", "", text, flags=re.MULTILINE)
 
         # Normalize whitespace
-        text = re.sub(r'\n\s*\n', '\n', text)
-        text = re.sub(r'\s+', ' ', text)
+        text = re.sub(r"\n\s*\n", "\n", text)
+        text = re.sub(r"\s+", " ", text)
 
         # Truncate if too long
         if len(text) > max_length:
             # Try to break at sentence
-            sentences = text[:max_length].split('. ')
+            sentences = text[:max_length].split(". ")
             if len(sentences) > 1:
-                text = '. '.join(sentences[:-1]) + '.'
+                text = ". ".join(sentences[:-1]) + "."
             else:
-                text = text[:max_length] + '...'
+                text = text[:max_length] + "..."
 
         return text.strip()
 
     @staticmethod
     def format_search_results(
-        results: List[Dict[str, Any]],
-        format_type: str = "markdown"
+        results: List[Dict[str, Any]], format_type: str = "markdown"
     ) -> str:
         """Format search results for display"""
 
@@ -80,7 +79,9 @@ class ResponseFormatter:
                     f"{result.get('title', 'No title')}\n"
                 )
                 formatted += f"{result.get('snippet', 'No description')}\n"
-                formatted += f"🔗 [{result.get('url', '')}]({result.get('url', '')})\n\n"
+                formatted += (
+                    f"🔗 [{result.get('url', '')}]({result.get('url', '')})\n\n"
+                )
 
             return formatted
 
@@ -96,16 +97,14 @@ class ResponseFormatter:
 
         elif format_type == "json":
             import json
+
             return json.dumps(results, indent=2)
 
         return str(results)
 
     @staticmethod
     def format_code_output(
-        code: str,
-        output: str,
-        error: str = None,
-        language: str = "python"
+        code: str, output: str, error: str = None, language: str = "python"
     ) -> str:
         """Format code execution results"""
 
@@ -144,19 +143,15 @@ class ResponseFormatter:
             return dt.strftime(format_str)
 
     @staticmethod
-    def truncate_text(
-        text: str,
-        max_length: int,
-        suffix: str = "..."
-    ) -> str:
+    def truncate_text(text: str, max_length: int, suffix: str = "...") -> str:
         """Truncate text intelligently"""
 
         if len(text) <= max_length:
             return text
 
         # Try to break at word boundary
-        truncated = text[:max_length - len(suffix)]
-        last_space = truncated.rfind(' ')
+        truncated = text[: max_length - len(suffix)]
+        last_space = truncated.rfind(" ")
 
         if last_space > max_length * 0.8:  # If we can save >80% of text
             truncated = truncated[:last_space]
@@ -169,10 +164,7 @@ class ResponseFormatter:
         return f"```{language}\n{code}\n```"
 
     @staticmethod
-    def create_table(
-        headers: List[str],
-        rows: List[List[Any]]
-    ) -> str:
+    def create_table(headers: List[str], rows: List[List[Any]]) -> str:
         """Create markdown table"""
 
         # Create header
@@ -186,10 +178,7 @@ class ResponseFormatter:
         return table
 
     @staticmethod
-    def format_error_message(
-        error: Exception,
-        include_traceback: bool = False
-    ) -> str:
+    def format_error_message(error: Exception, include_traceback: bool = False) -> str:
         """Format error message for user display"""
 
         error_type = type(error).__name__
@@ -200,6 +189,7 @@ class ResponseFormatter:
 
         if include_traceback:
             import traceback
+
             formatted += "\n**Traceback:**\n```\n"
             formatted += traceback.format_exc()
             formatted += "\n```\n"
@@ -226,16 +216,25 @@ class VoiceOptimizer:
 
         # Check for voice indicators
         voice_indicators = [
-            "hey", "hi", "hello", "um", "uh", "okay",
-            "can you", "could you", "would you",
-            "what's", "how's", "where's",
+            "hey",
+            "hi",
+            "hello",
+            "um",
+            "uh",
+            "okay",
+            "can you",
+            "could you",
+            "would you",
+            "what's",
+            "how's",
+            "where's",
         ]
 
         text_lower = text.lower()
         has_indicator = any(indicator in text_lower for indicator in voice_indicators)
 
         # Check punctuation density
-        punctuation_count = sum(1 for c in text if c in '.,!?;:')
+        punctuation_count = sum(1 for c in text if c in ".,!?;:")
         punctuation_ratio = punctuation_count / len(text) if text else 0
 
         # Voice input typically has less punctuation
@@ -255,14 +254,14 @@ class VoiceOptimizer:
 
         # Expand common abbreviations
         abbreviations = {
-            r'\bDr\.': 'Doctor',
-            r'\bMr\.': 'Mister',
-            r'\bMrs\.': 'Missus',
-            r'\bMs\.': 'Miss',
-            r'\betc\.': 'etcetera',
-            r'\be\.g\.': 'for example',
-            r'\bi\.e\.': 'that is',
-            r'\bvs\.': 'versus',
+            r"\bDr\.": "Doctor",
+            r"\bMr\.": "Mister",
+            r"\bMrs\.": "Missus",
+            r"\bMs\.": "Miss",
+            r"\betc\.": "etcetera",
+            r"\be\.g\.": "for example",
+            r"\bi\.e\.": "that is",
+            r"\bvs\.": "versus",
         }
 
         for abbrev, expansion in abbreviations.items():
@@ -270,30 +269,26 @@ class VoiceOptimizer:
 
         # Spell out symbols
         symbols = {
-            '&': 'and',
-            '@': 'at',
-            '#': 'number',
-            '%': 'percent',
-            '$': 'dollars',
-            '€': 'euros',
-            '£': 'pounds',
-            '+': 'plus',
-            '=': 'equals',
-            '<': 'less than',
-            '>': 'greater than',
+            "&": "and",
+            "@": "at",
+            "#": "number",
+            "%": "percent",
+            "$": "dollars",
+            "€": "euros",
+            "£": "pounds",
+            "+": "plus",
+            "=": "equals",
+            "<": "less than",
+            ">": "greater than",
         }
 
         for symbol, word in symbols.items():
-            text = text.replace(symbol, f' {word} ')
+            text = text.replace(symbol, f" {word} ")
 
         # Format URLs for speaking
-        text = re.sub(
-            r'https?://([^\s]+)',
-            r'\1',
-            text
-        )
+        text = re.sub(r"https?://([^\s]+)", r"\1", text)
 
         # Normalize whitespace
-        text = re.sub(r'\s+', ' ', text)
+        text = re.sub(r"\s+", " ", text)
 
         return text.strip()

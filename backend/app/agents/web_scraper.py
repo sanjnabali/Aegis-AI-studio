@@ -62,7 +62,7 @@ class WebScraper:
                 response.raise_for_status()
 
             # Parse HTML
-            soup = BeautifulSoup(response.content, 'html.parser')
+            soup = BeautifulSoup(response.content, "html.parser")
 
             # Extract title
             title = self._extract_title(soup)
@@ -72,7 +72,7 @@ class WebScraper:
 
             # Truncate if too long
             if len(text) > self.max_content_length:
-                text = text[:self.max_content_length] + "\n\n[Content truncated...]"
+                text = text[: self.max_content_length] + "\n\n[Content truncated...]"
 
             # Extract metadata
             metadata = self._extract_metadata(soup, url)
@@ -128,7 +128,7 @@ class WebScraper:
             return soup.title.string.strip()
 
         # Try <h1>
-        h1 = soup.find('h1')
+        h1 = soup.find("h1")
         if h1:
             return h1.get_text(strip=True)
 
@@ -138,12 +138,22 @@ class WebScraper:
         """Extract clean text content"""
 
         # Remove unwanted elements
-        for element in soup(['script', 'style', 'nav', 'footer',
-                            'header', 'aside', 'iframe', 'noscript']):
+        for element in soup(
+            [
+                "script",
+                "style",
+                "nav",
+                "footer",
+                "header",
+                "aside",
+                "iframe",
+                "noscript",
+            ]
+        ):
             element.decompose()
 
         # Get text
-        text = soup.get_text(separator='\n', strip=True)
+        text = soup.get_text(separator="\n", strip=True)
 
         # Clean up whitespace
         lines = [line.strip() for line in text.splitlines() if line.strip()]
@@ -156,7 +166,7 @@ class WebScraper:
                 seen.add(line)
                 unique_lines.append(line)
 
-        return '\n'.join(unique_lines)
+        return "\n".join(unique_lines)
 
     def _extract_metadata(self, soup: BeautifulSoup, url: str) -> Dict[str, Any]:
         """Extract metadata from page"""
@@ -166,14 +176,14 @@ class WebScraper:
         }
 
         # Try to get description
-        desc_tag = soup.find('meta', attrs={'name': 'description'})
+        desc_tag = soup.find("meta", attrs={"name": "description"})
         if desc_tag:
-            metadata['description'] = desc_tag.get('content', '')
+            metadata["description"] = desc_tag.get("content", "")
 
         # Try to get author
-        author_tag = soup.find('meta', attrs={'name': 'author'})
+        author_tag = soup.find("meta", attrs={"name": "author"})
         if author_tag:
-            metadata['author'] = author_tag.get('content', '')
+            metadata["author"] = author_tag.get("content", "")
 
         return metadata
 
@@ -186,8 +196,10 @@ class WebScraper:
         formatted = f"# {scrape_result['title']}\n\n"
         formatted += f"**Source:** {scrape_result['url']}\n"
 
-        if scrape_result.get('metadata', {}).get('description'):
-            formatted += f"**Description:** {scrape_result['metadata']['description']}\n"
+        if scrape_result.get("metadata", {}).get("description"):
+            formatted += (
+                f"**Description:** {scrape_result['metadata']['description']}\n"
+            )
 
         formatted += f"\n## Content\n\n{scrape_result['text']}\n"
 

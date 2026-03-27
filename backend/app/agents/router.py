@@ -57,43 +57,91 @@ class AgentRouter:
         # Web Search Intent Detection
         web_search_triggers = [
             # Explicit search requests
-            "search for", "look up", "find information", "google",
-            "search the web", "what's the latest", "recent news",
-
+            "search for",
+            "look up",
+            "find information",
+            "google",
+            "search the web",
+            "what's the latest",
+            "recent news",
             # Current information needs
-            "today", "currently", "right now", "latest", "recent",
-            "this week", "this month", "2024", "2025",
-
+            "today",
+            "currently",
+            "right now",
+            "latest",
+            "recent",
+            "this week",
+            "this month",
+            "2024",
+            "2025",
             # Fact-checking
-            "is it true", "verify", "fact check", "according to",
-
+            "is it true",
+            "verify",
+            "fact check",
+            "according to",
             # Research queries
-            "compare", "difference between", "best", "top",
-            "reviews", "ratings", "recommendations",
-
+            "compare",
+            "difference between",
+            "best",
+            "top",
+            "reviews",
+            "ratings",
+            "recommendations",
             # Current events
-            "news", "happened", "update on", "status of",
-            "what's going on", "current situation",
+            "news",
+            "happened",
+            "update on",
+            "status of",
+            "what's going on",
+            "current situation",
         ]
 
         # Code Intent Detection
         code_triggers = [
             # Programming languages
-            "python", "javascript", "java", "c++", "rust", "go",
-            "typescript", "ruby", "php", "swift", "kotlin",
-
+            "python",
+            "javascript",
+            "java",
+            "c++",
+            "rust",
+            "go",
+            "typescript",
+            "ruby",
+            "php",
+            "swift",
+            "kotlin",
             # Code-related actions
-            "code", "function", "class", "method", "algorithm",
-            "debug", "error", "bug", "fix", "implement",
-            "program", "script", "syntax", "compile",
-
+            "code",
+            "function",
+            "class",
+            "method",
+            "algorithm",
+            "debug",
+            "error",
+            "bug",
+            "fix",
+            "implement",
+            "program",
+            "script",
+            "syntax",
+            "compile",
             # Development concepts
-            "api", "database", "sql", "query", "regex",
-            "docker", "kubernetes", "git", "deploy",
-
+            "api",
+            "database",
+            "sql",
+            "query",
+            "regex",
+            "docker",
+            "kubernetes",
+            "git",
+            "deploy",
             # Code analysis
-            "refactor", "optimize", "review", "test",
-            "performance", "benchmark",
+            "refactor",
+            "optimize",
+            "review",
+            "test",
+            "performance",
+            "benchmark",
         ]
 
         # Check for web search intent
@@ -133,19 +181,25 @@ class AgentRouter:
                 "count": self.routing_stats["web_search"],
                 "percentage": (
                     f"{self.routing_stats['web_search']/total*100:.1f}%"
-                    if total > 0 else "0%"
+                    if total > 0
+                    else "0%"
                 ),
             },
             "code": {
                 "count": self.routing_stats["code"],
                 "percentage": (
                     f"{self.routing_stats['code']/total*100:.1f}%"
-                    if total > 0 else "0%"
+                    if total > 0
+                    else "0%"
                 ),
             },
             "chat": {
                 "count": self.routing_stats["chat"],
-                "percentage": f"{self.routing_stats['chat']/total*100:.1f}%" if total > 0 else "0%",
+                "percentage": (
+                    f"{self.routing_stats['chat']/total*100:.1f}%"
+                    if total > 0
+                    else "0%"
+                ),
             },
         }
 

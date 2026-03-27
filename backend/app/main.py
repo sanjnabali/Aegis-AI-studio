@@ -41,6 +41,7 @@ logger.add(
 # LIFESPAN MANAGEMENT
 # ============================================================================
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
@@ -55,6 +56,7 @@ async def lifespan(app: FastAPI):
         # Initialize Groq client (0 disk/RAM)
         logger.info("📡 Initializing Groq API...")
         from app.core import models
+
         try:
             models.get_groq_client()
             logger.success("✓ Groq API ready (0 disk/RAM)")
@@ -144,6 +146,7 @@ app.include_router(openai_router, tags=["OpenAI Compatible"])
 # ROOT ENDPOINTS
 # ============================================================================
 
+
 @app.get("/")
 async def root():
     """Root endpoint with system info"""
@@ -177,7 +180,7 @@ async def health_check():
             "models": "/v1/models",
             "chat": "/v1/chat/completions",
             "features": "/v1/features",
-        }
+        },
     }
 
 
@@ -201,8 +204,8 @@ async def not_found_handler(request, exc):
                 "models": "/v1/models",
                 "chat": "/v1/chat/completions",
                 "features": "/v1/features",
-            }
-        }
+            },
+        },
     )
 
 
@@ -216,7 +219,7 @@ async def server_error_handler(request, exc):
             "error": "Internal Server Error",
             "message": "An unexpected error occurred",
             "support": "Check logs or /health endpoint",
-        }
+        },
     )
 
 

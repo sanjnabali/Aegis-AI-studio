@@ -4,6 +4,7 @@ Enhanced Chat Tool
 ==================
 Manages chat conversations with context management and personality adaptation.
 """
+
 from collections import deque
 from datetime import datetime
 from typing import Any, Dict, List, Optional
@@ -100,10 +101,12 @@ class ConversationManager:
         # Always include the last message (user's current query)
         if messages:
             last_msg = messages[-1]
-            formatted_messages.append({
-                "role": last_msg["role"],
-                "content": last_msg["content"],
-            })
+            formatted_messages.append(
+                {
+                    "role": last_msg["role"],
+                    "content": last_msg["content"],
+                }
+            )
             total_chars += len(last_msg["content"])
 
         # Add previous messages in reverse order until we hit limit
@@ -114,16 +117,22 @@ class ConversationManager:
                 # If we have a summary, include it
                 if conversation_id in self.summaries:
                     summary_text = self.summaries[conversation_id]
-                    formatted_messages.insert(0, {
-                        "role": "system",
-                        "content": f"Previous conversation summary: {summary_text}",
-                    })
+                    formatted_messages.insert(
+                        0,
+                        {
+                            "role": "system",
+                            "content": f"Previous conversation summary: {summary_text}",
+                        },
+                    )
                 break
 
-            formatted_messages.insert(0, {
-                "role": msg["role"],
-                "content": msg["content"],
-            })
+            formatted_messages.insert(
+                0,
+                {
+                    "role": msg["role"],
+                    "content": msg["content"],
+                },
+            )
             total_chars += msg_chars
 
         return formatted_messages
@@ -152,18 +161,14 @@ class ConversationManager:
     def get_stats(self) -> Dict[str, Any]:
         """Get conversation statistics"""
 
-        total_messages = sum(
-            meta["message_count"]
-            for meta in self.metadata.values()
-        )
+        total_messages = sum(meta["message_count"] for meta in self.metadata.values())
 
         return {
             "total_conversations": len(self.conversations),
             "total_messages": total_messages,
-            "active_conversations": len([
-                c for c, meta in self.metadata.items()
-                if meta["message_count"] > 0
-            ]),
+            "active_conversations": len(
+                [c for c, meta in self.metadata.items() if meta["message_count"] > 0]
+            ),
         }
 
 
@@ -258,6 +263,7 @@ class PersonalityAdapter:
         if context and context.get("is_voice"):
             # Optimize for voice
             from app.utils.formatters import ResponseFormatter
+
             response = ResponseFormatter.format_for_voice(response)
 
         return response

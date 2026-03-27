@@ -24,38 +24,38 @@ MODELS = {
         "name": "deepseek-ai/deepseek-coder-1.3b-instruct",
         "size": "1.3B",
         "task": "Code generation",
-        "memory": "~2GB"
+        "memory": "~2GB",
     },
     "image_gen": {
         "name": "stabilityai/sdxl-turbo",
         "size": "6.9B",
         "task": "Image generation (1 step)",
-        "memory": "~7GB"
+        "memory": "~7GB",
     },
     "image_caption": {
         "name": "Salesforce/blip-image-captioning-base",
         "size": "400M",
         "task": "Image analysis/captioning",
-        "memory": "~800MB"
+        "memory": "~800MB",
     },
     "tts": {
         "name": "microsoft/speecht5_tts",
         "size": "200M",
         "task": "Text-to-speech",
-        "memory": "~500MB"
+        "memory": "~500MB",
     },
     "stt": {
         "name": "openai/whisper-tiny",
         "size": "39M",
         "task": "Speech-to-text",
-        "memory": "~150MB"
+        "memory": "~150MB",
     },
     "embeddings": {
         "name": "sentence-transformers/all-MiniLM-L6-v2",
         "size": "80M",
         "task": "Text embeddings/semantic search",
-        "memory": "~200MB"
-    }
+        "memory": "~200MB",
+    },
 }
 
 # Check if GPU is available
@@ -82,14 +82,13 @@ class CodeModel:
             model_name = MODELS["code"]["name"]
 
             self.tokenizer = AutoTokenizer.from_pretrained(
-                model_name,
-                cache_dir=CACHE_DIR
+                model_name, cache_dir=CACHE_DIR
             )
             self.model = AutoModelForCausalLM.from_pretrained(
                 model_name,
                 torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32,
                 device_map="auto" if DEVICE == "cuda" else None,
-                cache_dir=CACHE_DIR
+                cache_dir=CACHE_DIR,
             )
 
             if DEVICE == "cpu":
@@ -108,11 +107,11 @@ class CodeModel:
                 max_length=max_length,
                 temperature=0.7,
                 do_sample=True,
-                pad_token_id=self.tokenizer.eos_token_id
+                pad_token_id=self.tokenizer.eos_token_id,
             )
 
         response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return response[len(prompt):].strip()
+        return response[len(prompt) :].strip()
 
 
 class ImageGenModel:
@@ -130,7 +129,7 @@ class ImageGenModel:
             self.pipe = AutoPipelineForText2Image.from_pretrained(
                 MODELS["image_gen"]["name"],
                 torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32,
-                cache_dir=CACHE_DIR
+                cache_dir=CACHE_DIR,
             )
 
             if DEVICE == "cuda":
@@ -142,9 +141,7 @@ class ImageGenModel:
         self.load()
 
         image = self.pipe(
-            prompt=prompt,
-            num_inference_steps=num_steps,
-            guidance_scale=0.0
+            prompt=prompt, num_inference_steps=num_steps, guidance_scale=0.0
         ).images[0]
 
         return image
@@ -159,18 +156,15 @@ class ImageCaptionModel:
 
     def load(self):
         if self.model is None:
-            from transformers import (BlipForConditionalGeneration,
-                                      BlipProcessor)
+            from transformers import BlipForConditionalGeneration, BlipProcessor
 
             logger.info("Loading BLIP captioning model...")
 
             self.processor = BlipProcessor.from_pretrained(
-                MODELS["image_caption"]["name"],
-                cache_dir=CACHE_DIR
+                MODELS["image_caption"]["name"], cache_dir=CACHE_DIR
             )
             self.model = BlipForConditionalGeneration.from_pretrained(
-                MODELS["image_caption"]["name"],
-                cache_dir=CACHE_DIR
+                MODELS["image_caption"]["name"], cache_dir=CACHE_DIR
             ).to(DEVICE)
 
             logger.success("✓ Image caption model loaded")
@@ -197,22 +191,22 @@ class TTSModel:
 
     def load(self):
         if self.model is None:
-            from transformers import (SpeechT5ForTextToSpeech, SpeechT5HifiGan,
-                                      SpeechT5Processor)
+            from transformers import (
+                SpeechT5ForTextToSpeech,
+                SpeechT5HifiGan,
+                SpeechT5Processor,
+            )
 
             logger.info("Loading TTS model...")
 
             self.processor = SpeechT5Processor.from_pretrained(
-                MODELS["tts"]["name"],
-                cache_dir=CACHE_DIR
+                MODELS["tts"]["name"], cache_dir=CACHE_DIR
             )
             self.model = SpeechT5ForTextToSpeech.from_pretrained(
-                MODELS["tts"]["name"],
-                cache_dir=CACHE_DIR
+                MODELS["tts"]["name"], cache_dir=CACHE_DIR
             ).to(DEVICE)
             self.vocoder = SpeechT5HifiGan.from_pretrained(
-                "microsoft/speecht5_hifigan",
-                cache_dir=CACHE_DIR
+                "microsoft/speecht5_hifigan", cache_dir=CACHE_DIR
             ).to(DEVICE)
 
             logger.success("✓ TTS model loaded")
@@ -225,13 +219,12 @@ class TTSModel:
         # Load speaker embeddings (you need to provide these)
         # For now, using default
         import numpy as np
+
         speaker_embeddings = torch.tensor(np.random.randn(512)).unsqueeze(0).to(DEVICE)
 
         with torch.no_grad():
             speech = self.model.generate_speech(
-                inputs["input_ids"],
-                speaker_embeddings,
-                vocoder=self.vocoder
+                inputs["input_ids"], speaker_embeddings, vocoder=self.vocoder
             )
 
         return speech.cpu().numpy()
@@ -246,18 +239,15 @@ class STTModel:
 
     def load(self):
         if self.model is None:
-            from transformers import (WhisperForConditionalGeneration,
-                                      WhisperProcessor)
+            from transformers import WhisperForConditionalGeneration, WhisperProcessor
 
             logger.info("Loading Whisper Tiny...")
 
             self.processor = WhisperProcessor.from_pretrained(
-                MODELS["stt"]["name"],
-                cache_dir=CACHE_DIR
+                MODELS["stt"]["name"], cache_dir=CACHE_DIR
             )
             self.model = WhisperForConditionalGeneration.from_pretrained(
-                MODELS["stt"]["name"],
-                cache_dir=CACHE_DIR
+                MODELS["stt"]["name"], cache_dir=CACHE_DIR
             ).to(DEVICE)
 
             logger.success("✓ STT model loaded")
@@ -266,17 +256,14 @@ class STTModel:
         self.load()
 
         inputs = self.processor(
-            audio_data,
-            sampling_rate=16000,
-            return_tensors="pt"
+            audio_data, sampling_rate=16000, return_tensors="pt"
         ).to(DEVICE)
 
         with torch.no_grad():
             predicted_ids = self.model.generate(inputs["input_features"])
 
         transcription = self.processor.batch_decode(
-            predicted_ids,
-            skip_special_tokens=True
+            predicted_ids, skip_special_tokens=True
         )[0]
 
         return transcription
@@ -295,8 +282,7 @@ class EmbeddingsModel:
             logger.info("Loading embeddings model...")
 
             self.model = SentenceTransformer(
-                MODELS["embeddings"]["name"],
-                cache_folder=CACHE_DIR
+                MODELS["embeddings"]["name"], cache_folder=CACHE_DIR
             )
 
             logger.success("✓ Embeddings model loaded")
@@ -321,10 +307,7 @@ def get_available_models() -> Dict[str, Any]:
         "groq": {
             "status": "always_loaded",
             "models": ["llama-3.1-8b-instant"],
-            "use_case": "General chat, fast responses"
+            "use_case": "General chat, fast responses",
         },
-        "huggingface": {
-            "status": "lazy_loaded",
-            "models": MODELS
-        }
+        "huggingface": {"status": "lazy_loaded", "models": MODELS},
     }

@@ -85,18 +85,14 @@ class ResearchAgent:
             ][:num_sources]
 
             # Scrape concurrently
-            scrape_tasks = [
-                web_scraper.scrape(url)
-                for url in urls
-            ]
+            scrape_tasks = [web_scraper.scrape(url) for url in urls]
 
             scraped_results = await asyncio.gather(*scrape_tasks)
             research_result["scraped_content"] = scraped_results
 
             # Count successful scrapes
             successful_scrapes = sum(
-                1 for result in scraped_results
-                if result.get("success")
+                1 for result in scraped_results if result.get("success")
             )
 
             research_result["status"] = "complete"
@@ -107,14 +103,17 @@ class ResearchAgent:
             )
 
             # Store in history
-            self.research_history.append({
-                "query": query,
-                "sources_count": successful_scrapes,
-                "timestamp": (
-                    logger._core.handlers[0]._sink._file.name
-                    if logger._core.handlers else None
-                ),
-            })
+            self.research_history.append(
+                {
+                    "query": query,
+                    "sources_count": successful_scrapes,
+                    "timestamp": (
+                        logger._core.handlers[0]._sink._file.name
+                        if logger._core.handlers
+                        else None
+                    ),
+                }
+            )
 
             return research_result
 
@@ -153,8 +152,8 @@ class ResearchAgent:
             for article in news_results:
                 report += f"**{article['title']}**\n"
                 report += f"{article['snippet']}\n"
-                source = article.get('source', 'Unknown')
-                date = article.get('date', '')
+                source = article.get("source", "Unknown")
+                date = article.get("date", "")
                 report += f"Source: {source} | {date}\n"
                 report += f"{article['url']}\n\n"
 

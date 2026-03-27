@@ -48,9 +48,11 @@ class WebSearchAgent:
 
         if DDGS is None:
             logger.error("DuckDuckGo search not available")
-            return [{
-                "error": "Web search not configured. Install: pip install duckduckgo-search"
-            }]
+            return [
+                {
+                    "error": "Web search not configured. Install: pip install duckduckgo-search"
+                }
+            ]
 
         if max_results is None:
             max_results = self.max_results
@@ -72,30 +74,36 @@ class WebSearchAgent:
 
             # Format results
             for idx, result in enumerate(search_results, 1):
-                results.append({
-                    "position": idx,
-                    "title": result.get("title", "No title"),
-                    "snippet": result.get("body", "No description"),
-                    "url": result.get("href", ""),
-                    "timestamp": datetime.utcnow().isoformat(),
-                })
+                results.append(
+                    {
+                        "position": idx,
+                        "title": result.get("title", "No title"),
+                        "snippet": result.get("body", "No description"),
+                        "url": result.get("href", ""),
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                )
 
             # Store in history
-            self.search_history.append({
-                "query": query,
-                "results_count": len(results),
-                "timestamp": datetime.utcnow().isoformat(),
-            })
+            self.search_history.append(
+                {
+                    "query": query,
+                    "results_count": len(results),
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            )
 
             logger.success(f"✓ Found {len(results)} results")
             return results
 
         except Exception as e:
             logger.error(f"Search error: {e}")
-            return [{
-                "error": str(e),
-                "query": query,
-            }]
+            return [
+                {
+                    "error": str(e),
+                    "query": query,
+                }
+            ]
 
     def _sync_search(self, query: str, max_results: int, region: str) -> List[Dict]:
         """Synchronous search helper"""
@@ -134,14 +142,16 @@ class WebSearchAgent:
 
             results = []
             for idx, article in enumerate(news_results, 1):
-                results.append({
-                    "position": idx,
-                    "title": article.get("title", ""),
-                    "snippet": article.get("body", ""),
-                    "url": article.get("url", ""),
-                    "source": article.get("source", "Unknown"),
-                    "date": article.get("date", ""),
-                })
+                results.append(
+                    {
+                        "position": idx,
+                        "title": article.get("title", ""),
+                        "snippet": article.get("body", ""),
+                        "url": article.get("url", ""),
+                        "source": article.get("source", "Unknown"),
+                        "date": article.get("date", ""),
+                    }
+                )
 
             logger.success(f"Found {len(results)} news articles")
             return results

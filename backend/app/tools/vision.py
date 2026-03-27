@@ -12,6 +12,7 @@ from loguru import logger
 try:
     import google.generativeai as genai
     from PIL import Image
+
     VISION_AVAILABLE = True
 except ImportError:
     VISION_AVAILABLE = False
@@ -35,7 +36,7 @@ class VisionTool:
 
         if VISION_AVAILABLE and api_key:
             genai.configure(api_key=api_key)
-            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            self.model = genai.GenerativeModel("gemini-1.5-flash")
             logger.success("✓ Vision model initialized")
         else:
             logger.warning("Vision analysis not available")
