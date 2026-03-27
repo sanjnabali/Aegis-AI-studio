@@ -36,6 +36,7 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
 
+     
       # --- OPTIONAL: Docker image scan (only if image exists) ---
       - name: Build Docker image
         run: docker build -t aegis-backend:latest -f backend/Dockerfile backend/
