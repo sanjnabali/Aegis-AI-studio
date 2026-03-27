@@ -4,19 +4,14 @@ Pydantic Schemas - Complete Data Models (All Features Enabled)
 Supports: Chat, Web Search, Code Execution, Image Generation,
 Image Analysis, Voice Optimization, and Agent Routing
 """
-
 import time
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
-
-from pydantic import BaseModel, Field, field_validator
-
+from pydantic import BaseModel, Field, field_validator, validator
 # ============================================================================
 # ENUMS
 # ============================================================================
-
-
 class MessageRole(str, Enum):
     """Valid message roles"""
 
@@ -24,15 +19,10 @@ class MessageRole(str, Enum):
     USER = "user"
     ASSISTANT = "assistant"
     FUNCTION = "function"
-
-
 class ContentType(str, Enum):
     """Content types for multimodal messages"""
-
     TEXT = "text"
     IMAGE_URL = "image_url"
-
-
 class TaskType(str, Enum):
     """Agent task types"""
 
@@ -42,56 +32,40 @@ class TaskType(str, Enum):
     RESEARCH = "research"
     IMAGE_GEN = "image_generation"
     IMAGE_ANALYZE = "image_analysis"
-
-
 # ============================================================================
 # CHAT COMPLETION MODELS (Core)
 # ============================================================================
-
-
 class ImageURL(BaseModel):
     """Image URL container"""
 
     url: str = Field(..., description="URL of the image")
     detail: Literal["auto", "low", "high"] = "auto"
-
-
 class ContentPart(BaseModel):
     """Content part for multimodal messages"""
-
     type: ContentType
     text: Optional[str] = None
     image_url: Optional[ImageURL] = None
-
     @field_validator("text")
     @classmethod
     def validate_text(cls, v, info):
         if info.data.get("type") == ContentType.TEXT and not v:
             raise ValueError("Text required for text type")
         return v
-
     @field_validator("image_url")
     @classmethod
     def validate_image(cls, v, info):
         if info.data.get("type") == ContentType.IMAGE_URL and not v:
             raise ValueError("Image URL required for image_url type")
         return v
-
-
 class ChatMessage(BaseModel):
     """Single chat message"""
-
     role: MessageRole
     content: Union[str, List[ContentPart]]
     name: Optional[str] = None
-
     class Config:
         use_enum_values = True
-
-
 class ChatCompletionRequest(BaseModel):
     """Chat completion request (OpenAI-compatible)"""
-
     model: str = Field(..., description="Model to use")
     messages: List[ChatMessage] = Field(..., min_length=1, max_length=100)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
@@ -102,15 +76,12 @@ class ChatCompletionRequest(BaseModel):
     presence_penalty: float = Field(default=0.0, ge=-2.0, le=2.0)
     frequency_penalty: float = Field(default=0.0, ge=-2.0, le=2.0)
     user: Optional[str] = None
-
     # Extended parameters
     response_format: Optional[Dict[str, str]] = None
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
-
     class Config:
         extra = "allow"
-
 
 class StreamDelta(BaseModel):
     """Streaming response delta"""
@@ -160,10 +131,8 @@ class ModelPermission(BaseModel):
     organization: str = "*"
     is_blocking: bool = False
 
-
 class ModelData(BaseModel):
     """Model information"""
-
     id: str
     object: str = "model"
     created: int = Field(default_factory=lambda: int(time.time()))
@@ -175,7 +144,6 @@ class ModelData(BaseModel):
     speed: Optional[str] = None
     context_length: Optional[str] = None
     best_for: Optional[str] = None
-
 
 class ModelList(BaseModel):
     """List of available models"""
