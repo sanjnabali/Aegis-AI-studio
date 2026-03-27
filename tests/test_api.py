@@ -9,7 +9,7 @@ def test_health_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"
-    assert data["mode"] == "ultra-lightweight"
+    assert data["system"]["mode"] == "ultra-lightweight"
 
 def test_features_endpoint():
     response = client.get("/v1/features")
