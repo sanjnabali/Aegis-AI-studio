@@ -23,7 +23,7 @@ docs/
 README.md
 
 # Tests
-tests/
+
 .pytest_cache/
 
 # IDE
