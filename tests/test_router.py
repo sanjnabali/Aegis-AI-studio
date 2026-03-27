@@ -1,4 +1,4 @@
-from backend.app.agents.router import agent_router
+from app.agents.router import agent_router
 
 def test_router_code_intent():
     messages = [{"role": "user", "content": "Can you write a python script to parse JSON?"}]
