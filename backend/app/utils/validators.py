@@ -167,11 +167,12 @@ class QueryValidator:
 class ChatRequest(BaseModel):
     """Validated chat request"""
     model: str = Field(..., min_length=1, max_length=100)
-    messages: List[Dict[str, Any]] = Field(..., min_items=1, max_items=100)
+    messages: List[Dict[str, Any]] = Field(..., min_length=1, max_length=100)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(default=8000, ge=1, le=32000)
     stream: bool = Field(default=True)
-    @validator('messages')
+    @field_validator('messages')
+    @classmethod
     def validate_messages_list(cls, v):
         is_valid, error = MessageValidator.validate_messages(v)
         if not is_valid:
@@ -181,7 +182,8 @@ class WebSearchRequest(BaseModel):
     """Validated web search request"""
     query: str = Field(..., min_length=1, max_length=500)
     max_results: int = Field(default=5, ge=1, le=20)
-    @validator('query')
+    @field_validator('query')
+    @classmethod
     def validate_query_content(cls, v):
         is_valid, error = QueryValidator.is_valid_query(v)
         if not is_valid:
@@ -190,7 +192,8 @@ class WebSearchRequest(BaseModel):
 class WebScrapeRequest(BaseModel):
     """Validated web scrape request"""
     url: str = Field(..., min_length=1, max_length=2000)
-    @validator('url')
+    @field_validator('url')
+    @classmethod
     def validate_url_safety(cls, v):
         v = URLValidator.sanitize_url(v)
         if not URLValidator.is_valid_url(v):
@@ -200,7 +203,8 @@ class CodeExecutionRequest(BaseModel):
     """Validated code execution request"""
     code: str = Field(..., min_length=1, max_length=10000)
     timeout: int = Field(default=5, ge=1, le=30)
-    @validator('code')
+    @field_validator('code')
+    @classmethod
     def validate_code_safety(cls, v):
         is_safe, warning = CodeValidator.is_safe_code(v)
         if not is_safe:
