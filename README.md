@@ -1,8 +1,8 @@
-# 🛡️ Aegis AI Studio - HuggingFace First
+# Aegis AI Studio - HuggingFace First
 
 > Complete Local AI Platform with Advanced Models
 
-## ✨ Models Available
+## Models Available
 
 ### Primary Models (HuggingFace - Local)
 
@@ -25,7 +25,7 @@
 
 ---
 
-## 🚀 Quick Start
+## How to Start
 
 ### 1. Prerequisites
 
@@ -62,7 +62,7 @@ docker-compose logs -f backend
 
 ---
 
-## 🎯 Usage Guide
+## Usage Guide
 
 ### For Reasoning Tasks
 
@@ -115,7 +115,7 @@ Prompt: [any task]
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 ### `.env` File
 
@@ -146,7 +146,7 @@ GROQ_MODEL=llama-3.3-70b-versatile
 
 ---
 
-## 🔧 Advanced Usage
+## Advanced Usage
 
 ### Enable GPU Acceleration (Optional)
 
@@ -200,7 +200,7 @@ embeddings = client.embeddings.create(
 
 ---
 
-## 📊 Performance Benchmarks
+## Performance Benchmarks
 
 **With HF Models (CPU):**
 - Reasoning: ~100 tok/s
@@ -216,7 +216,7 @@ embeddings = client.embeddings.create(
 
 ---
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Models Not Loading
 
@@ -249,7 +249,7 @@ docker-compose restart backend
 
 ---
 
-## 📦 Model Details
+## Model Details
 
 ### GPT-OSS-20B (Reasoning)
 - **Source**: OpenAI
@@ -277,7 +277,7 @@ docker-compose restart backend
 
 ---
 
-## 🛠️ Management Commands
+## Management Commands
 
 ```bash
 # View logs
@@ -299,13 +299,13 @@ docker system prune -f
 
 ---
 
-## 📄 License
+## License
 
 MIT License - see [LICENSE](LICENSE)
 
 ---
 
-## 🤝 Support
+## Support
 
 - Issues: GitHub Issues
 - Docs: /docs endpoint
