@@ -1,20 +1,22 @@
-"""
+﻿"""
 Pydantic Schemas - Complete Data Models (All Features Enabled)
 ==============================================================
 Supports: Chat, Web Search, Code Execution, Image Generation,
 Image Analysis, Voice Optimization, and Agent Routing
 """
 
-from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional, Dict, Any, Union, Literal
+import time
 from datetime import datetime
 from enum import Enum
-import time
+from typing import Any, Dict, List, Literal, Optional, Union
+
+from pydantic import BaseModel, Field, field_validator
 
 
 # ============================================================================
 # ENUMS
 # ============================================================================
+
 
 class MessageRole(str, Enum):
     """Valid message roles"""
@@ -55,14 +57,14 @@ class ContentPart(BaseModel):
     type: ContentType
     text: Optional[str] = None
     image_url: Optional[ImageURL] = None
-    
+
     @field_validator('text')
     @classmethod
     def validate_text(cls, v, info):
         if info.data.get('type') == ContentType.TEXT and not v:
             raise ValueError("Text required for text type")
         return v
-    
+
     @field_validator('image_url')
     @classmethod
     def validate_image(cls, v, info):
@@ -76,7 +78,7 @@ class ChatMessage(BaseModel):
     role: MessageRole
     content: Union[str, List[ContentPart]]
     name: Optional[str] = None
-    
+
     class Config:
         use_enum_values = True
 
@@ -93,12 +95,12 @@ class ChatCompletionRequest(BaseModel):
     presence_penalty: float = Field(default=0.0, ge=-2.0, le=2.0)
     frequency_penalty: float = Field(default=0.0, ge=-2.0, le=2.0)
     user: Optional[str] = None
-    
+
     # Extended parameters
     response_format: Optional[Dict[str, str]] = None
     tools: Optional[List[Dict[str, Any]]] = None
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None
-    
+
     class Config:
         extra = "allow"
 
@@ -154,7 +156,7 @@ class ModelData(BaseModel):
     created: int = Field(default_factory=lambda: int(time.time()))
     owned_by: str = "aegis"
     permission: List[ModelPermission] = Field(default_factory=list)
-    
+
     # Extended model info
     description: Optional[str] = None
     speed: Optional[str] = None
@@ -331,7 +333,7 @@ class ImageAnalysisRequest(BaseModel):
     image_base64: Optional[str] = None
     analysis_type: Literal["caption", "detailed", "objects"] = "caption"
     max_length: int = Field(default=100, ge=20, le=200)
-    
+
     @field_validator('image_url', 'image_base64')
     @classmethod
     def validate_image_source(cls, v, info):
@@ -619,7 +621,7 @@ __all__ = [
     "MessageRole",
     "ContentType",
     "TaskType",
-    
+
     # Core Chat Models
     "ImageURL",
     "ContentPart",
@@ -628,12 +630,12 @@ __all__ = [
     "StreamDelta",
     "StreamChoice",
     "ChatCompletionStreamResponse",
-    
+
     # Model Management
     "ModelPermission",
     "ModelData",
     "ModelList",
-    
+
     # Web Features
     "WebSearchRequest",
     "WebSearchResult",
@@ -643,47 +645,47 @@ __all__ = [
     "ResearchRequest",
     "ResearchSource",
     "ResearchResponse",
-    
+
     # Code Execution
     "CodeExecutionRequest",
     "CodeExecutionResponse",
-    
+
     # Image Features
     "ImageGenerationRequest",
     "ImageGenerationResponse",
     "ImageAnalysisRequest",
     "ImageAnalysisResponse",
-    
+
     # Audio Features
     "TextToSpeechRequest",
     "TextToSpeechResponse",
     "SpeechToTextRequest",
     "SpeechToTextResponse",
-    
+
     # Voice Optimization
     "VoiceDetectionRequest",
     "VoiceOptimizationResponse",
-    
+
     # Agent System
     "AgentTask",
     "AgentStep",
     "AgentResponse",
     "AgentStats",
-    
+
     # System
     "HealthStatus",
     "SystemStats",
     "PerformanceMetrics",
     "ErrorResponse",
-    
+
     # Cache
     "CacheStats",
     "CacheInvalidationRequest",
-    
+
     # Rate Limiting
     "RateLimitInfo",
     "RateLimitStatus",
-    
+
     # Embeddings & RAG
     "EmbeddingsRequest",
     "EmbeddingData",

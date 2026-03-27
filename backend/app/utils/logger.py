@@ -1,13 +1,12 @@
-"""
+﻿"""
 Advanced Logging Configuration
 ===============================
 Structured logging with context, performance tracking, and log aggregation.
 """
 
-import sys
 import json
+import sys
 from datetime import datetime
-from typing import Any, Dict
 from pathlib import Path
 
 from loguru import logger
@@ -17,17 +16,17 @@ class StructuredLogger:
     """
     Enhanced logger with structured output and context tracking.
     """
-    
+
     def __init__(self):
         self.context = {}
         self._setup_logger()
-    
+
     def _setup_logger(self):
         """Configure Loguru with custom formatting"""
-        
+
         # Remove default handler
         logger.remove()
-        
+
         # Console handler with colors (for development)
         logger.add(
             sys.stdout,
@@ -42,11 +41,11 @@ class StructuredLogger:
             backtrace=True,
             diagnose=True,
         )
-        
+
         # JSON file handler (for production/parsing)
         log_dir = Path("logs")
         log_dir.mkdir(exist_ok=True)
-        
+
         logger.add(
             log_dir / "aegis_{time:YYYY-MM-DD}.json",
             format="{message}",
@@ -56,11 +55,14 @@ class StructuredLogger:
             compression="zip",
             serialize=True,  # JSON serialization
         )
-        
+
         # Error file handler
         logger.add(
             log_dir / "aegis_errors_{time:YYYY-MM-DD}.log",
-            format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} | {message}",
+            format=(
+                "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | "
+                "{name}:{function}:{line} | {message}"
+            ),
             level="ERROR",
             rotation="00:00",
             retention="90 days",
@@ -68,15 +70,15 @@ class StructuredLogger:
             backtrace=True,
             diagnose=True,
         )
-    
+
     def set_context(self, **kwargs):
         """Set context variables for all subsequent logs"""
         self.context.update(kwargs)
-    
+
     def clear_context(self):
         """Clear all context variables"""
         self.context.clear()
-    
+
     def log_with_context(self, level: str, message: str, **extra):
         """Log with context and extra data"""
         log_data = {
@@ -85,9 +87,9 @@ class StructuredLogger:
             "message": message,
             "timestamp": datetime.utcnow().isoformat(),
         }
-        
+
         getattr(logger, level.lower())(json.dumps(log_data))
-    
+
     def log_api_request(
         self,
         method: str,
@@ -105,7 +107,7 @@ class StructuredLogger:
             request_id=request_id,
             type="api_request",
         )
-    
+
     def log_api_response(
         self,
         request_id: str,
@@ -121,7 +123,7 @@ class StructuredLogger:
             duration_ms=duration_ms,
             type="api_response",
         )
-    
+
     def log_llm_call(
         self,
         backend: str,
@@ -139,7 +141,7 @@ class StructuredLogger:
             latency_ms=latency_ms,
             type="llm_call",
         )
-    
+
     def log_cache_hit(self, cache_key: str):
         """Log cache hit"""
         self.log_with_context(
@@ -148,7 +150,7 @@ class StructuredLogger:
             cache_key=cache_key,
             type="cache_hit",
         )
-    
+
     def log_cache_miss(self, cache_key: str):
         """Log cache miss"""
         self.log_with_context(

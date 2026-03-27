@@ -1,17 +1,18 @@
-"""
+﻿"""
 Aegis AI Studio - Main Application
 ===================================
 Ultra-Lightweight Version
 """
 
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from loguru import logger
 import sys
+from contextlib import asynccontextmanager
 
 from app.core.config import get_settings
 from app.openai_adapter import router as openai_router
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from loguru import logger
 
 settings = get_settings()
 
@@ -43,14 +44,14 @@ logger.add(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
-    
+
     logger.info("=" * 60)
     logger.info("🛡️  AEGIS AI STUDIO - ULTRA-LIGHTWEIGHT")
     logger.info("=" * 60)
-    
+
     try:
         logger.info("✓ Logging initialized")
-        
+
         # Initialize Groq client (0 disk/RAM)
         logger.info("📡 Initializing Groq API...")
         from app.core import models
@@ -60,7 +61,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"⚠️  Groq API not configured: {e}")
             logger.info("💡 Set GROQ_API_KEY in .env to enable")
-        
+
         # Check HF models status
         if settings.enable_hf_models:
             logger.info("🤗 HuggingFace models: ENABLED")
@@ -73,19 +74,19 @@ async def lifespan(app: FastAPI):
         else:
             logger.warning("⚠️  HuggingFace models: DISABLED")
             logger.info("💡 Set ENABLE_HF_MODELS=true in .env to enable")
-        
+
         # Cache status
         if settings.enable_caching:
             logger.info("💾 Caching: ENABLED")
         else:
             logger.info("💾 Caching: DISABLED")
-        
+
         # Web search status
         if settings.enable_web_search:
             logger.info("🔍 Web search: ENABLED")
         else:
             logger.info("🔍 Web search: DISABLED")
-        
+
         logger.info("=" * 60)
         logger.success("✅ AEGIS STUDIO READY - ULTRA-LIGHTWEIGHT MODE")
         logger.info("=" * 60)
@@ -102,13 +103,13 @@ async def lifespan(app: FastAPI):
         logger.info("   • Features: /v1/features")
         logger.info("   • Docs: /docs")
         logger.info("=" * 60)
-        
+
         yield
-        
+
     except Exception as e:
         logger.critical(f"❌ Startup failed: {e}")
         raise
-    
+
     finally:
         logger.info("👋 Shutting down Aegis Studio...")
 
@@ -173,7 +174,7 @@ async def health_check():
         "disk_usage": "~6GB (with vision)",
         "endpoints": {
             "health": "/health",
-            "models": "/v1/models", 
+            "models": "/v1/models",
             "chat": "/v1/chat/completions",
             "features": "/v1/features",
         }
@@ -184,7 +185,6 @@ async def health_check():
 # ERROR HANDLERS
 # ============================================================================
 
-from fastapi.responses import JSONResponse
 
 @app.exception_handler(404)
 async def not_found_handler(request, exc):
@@ -222,7 +222,7 @@ async def server_error_handler(request, exc):
 
 if __name__ == "__main__":
     import uvicorn
-    
+
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",

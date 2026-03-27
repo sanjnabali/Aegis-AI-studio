@@ -1,13 +1,13 @@
-"""
+﻿"""
 HuggingFace Model Manager
 =========================
 Loads and manages lightweight HF models for specialized tasks.
 """
 
-import os
-import torch
-from typing import Optional, List, Dict, Any
 from pathlib import Path
+from typing import Any, Dict, List
+
+import torch
 from loguru import logger
 
 # Lazy imports to avoid loading all models at startup
@@ -69,18 +69,18 @@ CACHE_DIR.mkdir(exist_ok=True)
 
 class CodeModel:
     """Lightweight code generation model"""
-    
+
     def __init__(self):
         self.model = None
         self.tokenizer = None
-    
+
     def load(self):
         if self.model is None:
             from transformers import AutoModelForCausalLM, AutoTokenizer
-            
+
             logger.info("Loading DeepSeek Coder 1.3B...")
             model_name = MODELS["code"]["name"]
-            
+
             self.tokenizer = AutoTokenizer.from_pretrained(
                 model_name,
                 cache_dir=CACHE_DIR
@@ -91,17 +91,17 @@ class CodeModel:
                 device_map="auto" if DEVICE == "cuda" else None,
                 cache_dir=CACHE_DIR
             )
-            
+
             if DEVICE == "cpu":
                 self.model = self.model.to(DEVICE)
-            
+
             logger.success("✓ Code model loaded")
-    
+
     def generate(self, prompt: str, max_length: int = 512) -> str:
         self.load()
-        
+
         inputs = self.tokenizer(prompt, return_tensors="pt").to(DEVICE)
-        
+
         with torch.no_grad():
             outputs = self.model.generate(
                 **inputs,
@@ -110,59 +110,60 @@ class CodeModel:
                 do_sample=True,
                 pad_token_id=self.tokenizer.eos_token_id
             )
-        
+
         response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
         return response[len(prompt):].strip()
 
 
 class ImageGenModel:
     """Fast image generation (1-step SDXL Turbo)"""
-    
+
     def __init__(self):
         self.pipe = None
-    
+
     def load(self):
         if self.pipe is None:
             from diffusers import AutoPipelineForText2Image
-            
+
             logger.info("Loading SDXL Turbo...")
-            
+
             self.pipe = AutoPipelineForText2Image.from_pretrained(
                 MODELS["image_gen"]["name"],
                 torch_dtype=torch.float16 if DEVICE == "cuda" else torch.float32,
                 cache_dir=CACHE_DIR
             )
-            
+
             if DEVICE == "cuda":
                 self.pipe = self.pipe.to(DEVICE)
-            
+
             logger.success("✓ Image generation model loaded")
-    
+
     def generate(self, prompt: str, num_steps: int = 1) -> Any:
         self.load()
-        
+
         image = self.pipe(
             prompt=prompt,
             num_inference_steps=num_steps,
             guidance_scale=0.0
         ).images[0]
-        
+
         return image
 
 
 class ImageCaptionModel:
     """Image analysis and captioning"""
-    
+
     def __init__(self):
         self.model = None
         self.processor = None
-    
+
     def load(self):
         if self.model is None:
-            from transformers import BlipProcessor, BlipForConditionalGeneration
-            
+            from transformers import (BlipForConditionalGeneration,
+                                      BlipProcessor)
+
             logger.info("Loading BLIP captioning model...")
-            
+
             self.processor = BlipProcessor.from_pretrained(
                 MODELS["image_caption"]["name"],
                 cache_dir=CACHE_DIR
@@ -171,35 +172,36 @@ class ImageCaptionModel:
                 MODELS["image_caption"]["name"],
                 cache_dir=CACHE_DIR
             ).to(DEVICE)
-            
+
             logger.success("✓ Image caption model loaded")
-    
+
     def caption(self, image) -> str:
         self.load()
-        
+
         inputs = self.processor(image, return_tensors="pt").to(DEVICE)
-        
+
         with torch.no_grad():
             out = self.model.generate(**inputs, max_length=100)
-        
+
         caption = self.processor.decode(out[0], skip_special_tokens=True)
         return caption
 
 
 class TTSModel:
     """Text-to-speech (lightweight)"""
-    
+
     def __init__(self):
         self.model = None
         self.vocoder = None
         self.processor = None
-    
+
     def load(self):
         if self.model is None:
-            from transformers import SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
-            
+            from transformers import (SpeechT5ForTextToSpeech, SpeechT5HifiGan,
+                                      SpeechT5Processor)
+
             logger.info("Loading TTS model...")
-            
+
             self.processor = SpeechT5Processor.from_pretrained(
                 MODELS["tts"]["name"],
                 cache_dir=CACHE_DIR
@@ -212,42 +214,43 @@ class TTSModel:
                 "microsoft/speecht5_hifigan",
                 cache_dir=CACHE_DIR
             ).to(DEVICE)
-            
+
             logger.success("✓ TTS model loaded")
-    
+
     def synthesize(self, text: str) -> Any:
         self.load()
-        
+
         inputs = self.processor(text=text, return_tensors="pt").to(DEVICE)
-        
+
         # Load speaker embeddings (you need to provide these)
         # For now, using default
         import numpy as np
         speaker_embeddings = torch.tensor(np.random.randn(512)).unsqueeze(0).to(DEVICE)
-        
+
         with torch.no_grad():
             speech = self.model.generate_speech(
                 inputs["input_ids"],
                 speaker_embeddings,
                 vocoder=self.vocoder
             )
-        
+
         return speech.cpu().numpy()
 
 
 class STTModel:
     """Speech-to-text (Whisper tiny)"""
-    
+
     def __init__(self):
         self.model = None
         self.processor = None
-    
+
     def load(self):
         if self.model is None:
-            from transformers import WhisperProcessor, WhisperForConditionalGeneration
-            
+            from transformers import (WhisperForConditionalGeneration,
+                                      WhisperProcessor)
+
             logger.info("Loading Whisper Tiny...")
-            
+
             self.processor = WhisperProcessor.from_pretrained(
                 MODELS["stt"]["name"],
                 cache_dir=CACHE_DIR
@@ -256,48 +259,48 @@ class STTModel:
                 MODELS["stt"]["name"],
                 cache_dir=CACHE_DIR
             ).to(DEVICE)
-            
+
             logger.success("✓ STT model loaded")
-    
+
     def transcribe(self, audio_data) -> str:
         self.load()
-        
+
         inputs = self.processor(
             audio_data,
             sampling_rate=16000,
             return_tensors="pt"
         ).to(DEVICE)
-        
+
         with torch.no_grad():
             predicted_ids = self.model.generate(inputs["input_features"])
-        
+
         transcription = self.processor.batch_decode(
             predicted_ids,
             skip_special_tokens=True
         )[0]
-        
+
         return transcription
 
 
 class EmbeddingsModel:
     """Text embeddings for semantic search"""
-    
+
     def __init__(self):
         self.model = None
-    
+
     def load(self):
         if self.model is None:
             from sentence_transformers import SentenceTransformer
-            
+
             logger.info("Loading embeddings model...")
-            
+
             self.model = SentenceTransformer(
                 MODELS["embeddings"]["name"],
                 cache_folder=CACHE_DIR
             )
-            
+
             logger.success("✓ Embeddings model loaded")
-    
+
     def encode(self, texts: List[str]) -> Any:
         self.load()
         return self.model.encode(texts)
