@@ -29,7 +29,7 @@ logger.add(
 )
 
 logger.add(
-    "/app/logs/aegis.log",
+    "logs/aegis.log",
     rotation="100 MB",
     retention="7 days",
     compression="zip",
