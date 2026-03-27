@@ -1,4 +1,4 @@
-from backend.app.utils.validators import URLValidator, CodeValidator
+from app.utils.validators import URLValidator, CodeValidator
 
 def test_url_validator():
     # Test valid URLs
