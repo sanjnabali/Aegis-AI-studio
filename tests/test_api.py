@@ -1,7 +1,6 @@
 from fastapi.testclient import TestClient
 from app.main import app
 
-# Create a test client
 client = TestClient(app)
 
 def test_health_endpoint():
@@ -9,7 +8,7 @@ def test_health_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"
-    assert data["system"]["mode"] == "ultra-lightweight"
+    assert data["mode"] == "ultra-lightweight"
 
 def test_features_endpoint():
     response = client.get("/v1/features")
