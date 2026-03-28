@@ -3,7 +3,7 @@ name: Security Scan
 on:
   schedule:
     - cron: '0 0 * * 0'  # Weekly on Sunday
-  workflow_dispatch:
+  workflow_dispatch:     # Allows you to run this manually from the Actions tab
 
 permissions:
   contents: read
@@ -35,11 +35,11 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
-
-     
-      # --- OPTIONAL: Docker image scan (only if image exists) ---
+      
+      # --- Docker image build & scan ---
       - name: Build Docker image
-        run: docker build -t aegis-backend:latest backend/
+        working-directory: ./backend  # <-- FIX: Tells the runner to step into the backend folder
+        run: docker build -t aegis-backend:latest .
 
       - name: Scan Docker image
         uses: aquasecurity/trivy-action@master
