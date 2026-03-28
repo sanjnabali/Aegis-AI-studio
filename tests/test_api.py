@@ -4,13 +4,16 @@ from app.main import app
 client = TestClient(app)
 
 def test_health_endpoint():
+    """Test the health endpoint returns correct status"""
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "healthy"
-    # Removed the 'mode' check to avoid conflict with the nested openai_adapter health endpoint
+    # Note: The health endpoint returns 'mode' in the openai_adapter
+    # but the root health endpoint doesn't, so we just check status
 
 def test_features_endpoint():
+    """Test the features endpoint is accessible"""
     response = client.get("/v1/features")
     assert response.status_code == 200
     data = response.json()
